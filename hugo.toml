@@ -1,0 +1,37 @@
+# Overwrite the default hugo.toml
+@"
+baseURL = "/"
+languageCode = "en-us"
+title = "RadiantSec"
+theme = "hextra"
+
+[params]
+  description = "Security research, HTB writeups, red team and blue team notes."
+
+[params.navbar]
+  displayTitle = true
+  displayLogo = false
+
+[params.footer]
+  enable = true
+  [[params.footer.links]]
+    name = "GitHub"
+    icon = "github"
+    url = "https://github.com/yourusername/RadiantSec"
+
+[menu]
+  [[menu.main]]
+    name = "Blog"
+    pageRef = "/blog"
+    weight = 1
+  [[menu.main]]
+    name = "Docs"
+    pageRef = "/docs"
+    weight = 2
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.highlight]
+  style = "monokai"
+"@ | Set-Content hugo.toml
