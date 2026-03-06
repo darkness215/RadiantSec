@@ -94,13 +94,15 @@ a.navbar-brand,
   font-weight: 700 !important;
   letter-spacing: 0.05em !important;
 }
-/* Fix sidebar sticky scrolling issue */
-.hextra-sidebar-container {
-  position: sticky !important;
-  top: 64px !important;
-  height: calc(100vh - 64px) !important;
-  overflow-y: auto !important;
-  align-self: flex-start !important;
+/* Fix sidebar sticky scrolling issue (desktop only) */
+@media (min-width: 768px) {
+  .hextra-sidebar-container {
+    position: sticky !important;
+    top: 64px !important;
+    height: calc(100vh - 64px) !important;
+    overflow-y: auto !important;
+    align-self: flex-start !important;
+  }
 }
 
 /* Keep bottom bar always at bottom of sidebar */
