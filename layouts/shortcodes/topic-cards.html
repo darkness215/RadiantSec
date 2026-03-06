@@ -1,0 +1,16 @@
+{{- $topics := slice
+  (dict "path" "/docs/htb"       "title" "HTB Writeups" "icon" "terminal"           "subtitle" "Retired machine walkthroughs from enumeration to root.")
+  (dict "path" "/docs/redteam"   "title" "Red Team"     "icon" "shield-exclamation"  "subtitle" "Offensive techniques for constrained environments.")
+  (dict "path" "/docs/blueteam"  "title" "Blue Team"    "icon" "shield-check"        "subtitle" "Threat hunting and detection from the attacker's perspective.")
+  (dict "path" "/docs/applocker" "title" "AppLocker"    "icon" "lock-closed"         "subtitle" "Bypass techniques and detection for every AppLocker escape.")
+-}}
+
+<div class="hextra-cards hx:mt-4 hx:gap-4 hx:grid not-prose topic-grid" style="--hextra-cards-grid-cols: 4;">
+  {{- range $topics -}}
+    {{- $sec   := site.GetPage .path -}}
+    {{- $count := 0 -}}
+    {{- if $sec -}}{{- $count = len $sec.RegularPages -}}{{- end -}}
+    {{- $tag   := printf "%d %s" $count (cond (eq $count 1) "post" "posts") -}}
+    {{ partial "shortcodes/card.html" (dict "link" .path "title" .title "icon" .icon "subtitle" .subtitle "tag" $tag) }}
+  {{- end -}}
+</div>

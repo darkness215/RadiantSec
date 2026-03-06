@@ -1,23 +1,41 @@
-# Overwrite the default hugo.toml
-@"
-baseURL = "/"
+baseURL = "https://radiantsec.io/"
 languageCode = "en-us"
-title = "RadiantSec"
+title = "Radiant Sec"
 theme = "hextra"
+enableGitInfo = true
+
+[outputs]
+  home    = ["HTML", "RSS"]
+  section = ["HTML", "RSS"]
+  page    = ["HTML"]
 
 [params]
   description = "Security research, HTB writeups, red team and blue team notes."
+  favicon = "favicon.ico"
+  defaultTheme = "system"
+  displayUpdatedDate = true
+  images = ["/images/logo-dark.png"]
+
+[params.search]
+  enable = true
+  type = "flexsearch"
 
 [params.navbar]
   displayTitle = true
-  displayLogo = false
+  displayLogo = true
+  logo.path = "images/logo-light.png"
+  logo.dark = "images/logo-dark.png"
+  logo.width = 30
+  logo.height = 30
+  logo.link = "/"
+
+[params.author]
+  name  = "darkness215"
+  email = ""
 
 [params.footer]
   enable = true
-  [[params.footer.links]]
-    name = "GitHub"
-    icon = "github"
-    url = "https://github.com/yourusername/RadiantSec"
+  displayPoweredBy = false
 
 [menu]
   [[menu.main]]
@@ -28,10 +46,41 @@ theme = "hextra"
     name = "Docs"
     pageRef = "/docs"
     weight = 2
+  [[menu.main]]
+    name = "About"
+    pageRef = "/about"
+    weight = 3
+  [[menu.main]]
+    name = "Search"
+    weight = 4
+    [menu.main.params]
+      type = "search"
+  [[menu.main]]
+    name = ""
+    url = "https://github.com/darkness215/RadiantSec"
+    weight = 5
+    [menu.main.params]
+      icon = "github"
 
 [markup.goldmark.renderer]
   unsafe = true
 
+[taxonomies]
+  tag = "tags"
+
 [markup.highlight]
   style = "monokai"
-"@ | Set-Content hugo.toml
+  lineNos = false
+
+[params.blog]
+  sortBy    = "date"
+  sortOrder = "desc"
+
+[related]
+  includeNewer = true
+  threshold    = 50
+  toLower      = true
+
+  [[related.indices]]
+    name   = "tags"
+    weight = 100

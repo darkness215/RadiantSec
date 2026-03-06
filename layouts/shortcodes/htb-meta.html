@@ -1,0 +1,10 @@
+<table class="htb-meta-table">
+  <tbody>
+    <tr><th>Platform</th><td>{{ .Get "platform" | default "HackTheBox" }}</td></tr>
+    <tr><th>Difficulty</th><td>{{ .Get "difficulty" }}</td></tr>
+    <tr><th>OS</th><td>{{ .Get "os" }}</td></tr>
+    <tr><th>IP</th><td>{{ .Get "ip" }}</td></tr>
+    <tr><th>Date</th><td>{{ .Get "date" }}</td></tr>
+    <tr><th>Status</th><td>{{ .Get "status" | default "✅ Rooted" }}</td></tr>
+  </tbody>
+</table>

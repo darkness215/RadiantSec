@@ -1,0 +1,26 @@
+{{ define "main" }}
+  <div class='hx:mx-auto hx:flex hextra-max-page-width'>
+    {{ partial "sidebar.html" (dict "context" . "disableSidebar" true "displayPlaceholder" true) }}
+    {{ partial "toc.html" (dict "Params" (dict "toc" false)) }}
+    <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]">
+      <main id="content" class="hx:w-full hx:min-w-0 hextra-max-content-width hx:px-6 hx:pt-4 hx:md:px-12">
+        <h1 class="hx:mt-2 hx:text-3xl hx:font-bold hx:tracking-tight">
+          <span style="color: #e63946;">#</span> {{ .Title }}
+        </h1>
+        <p class="tag-post-count">{{ len .Pages }} {{ if eq (len .Pages) 1 }}post{{ else }}posts{{ end }}</p>
+        <div class="tag-posts-list">
+          {{- range .Pages -}}
+          <a href="{{ .RelPermalink }}" class="tag-post-item">
+            <span class="tag-post-title">{{ .Title }}</span>
+            <span class="latest-post-meta">
+              <span class="latest-post-section">{{ .CurrentSection.Title }}</span>
+              <span class="latest-post-dot">·</span>
+              <span class="latest-post-date">{{ .Date.Format "Jan 2, 2006" }}</span>
+            </span>
+          </a>
+          {{- end -}}
+        </div>
+      </main>
+    </article>
+  </div>
+{{ end }}

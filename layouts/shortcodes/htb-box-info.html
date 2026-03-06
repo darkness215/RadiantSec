@@ -1,0 +1,112 @@
+{{ $name       := .Get "name" }}
+{{ $avatar     := .Get "avatar" }}
+{{ $os         := .Get "os" }}
+{{ $diff       := .Get "difficulty" }}
+{{ $release    := .Get "release" }}
+{{ $retire     := .Get "retire" }}
+{{ $ublood     := .Get "user_blood" }}
+{{ $ubtime     := .Get "user_blood_time" }}
+{{ $uburl      := .Get "user_blood_url" }}
+{{ $ubimg      := .Get "user_blood_img" }}
+{{ $rblood     := .Get "root_blood" }}
+{{ $rbtime     := .Get "root_blood_time" }}
+{{ $rburl      := .Get "root_blood_url" }}
+{{ $rbimg      := .Get "root_blood_img" }}
+{{ $creator    := .Get "creator" }}
+{{ $creatorurl := .Get "creator_url" }}
+{{ $creatorimg := .Get "creator_img" }}
+
+{{ $diffSlug := lower $diff }}
+
+<div class="htb-card">
+
+  {{/* ── Header ── */}}
+  <div class="htb-card-header">
+    <div class="htb-card-avatar">
+      {{ if $avatar }}
+        <img src="{{ $avatar }}" alt="{{ $name }}">
+      {{ else }}
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="40" height="40" rx="6" fill="#1a2332"/>
+          <path d="M20 8L30 14V26L20 32L10 26V14L20 8Z" stroke="#9fef00" stroke-width="1.5" fill="none"/>
+          <path d="M20 14L25 17V23L20 26L15 23V17L20 14Z" fill="#9fef0022" stroke="#9fef00" stroke-width="1"/>
+        </svg>
+      {{ end }}
+    </div>
+    <span class="htb-card-name">{{ $name }}</span>
+    <span class="htb-card-badge htb-diff-{{ $diffSlug }}">{{ upper $diff }}</span>
+  </div>
+
+  {{/* ── Date + OS row ── */}}
+  <div class="htb-card-stats">
+    <div class="htb-card-stat">
+      <div class="htb-stat-label">RELEASE DATE</div>
+      <div class="htb-stat-val htb-stat-green">{{ $release }}</div>
+    </div>
+    <div class="htb-card-stat">
+      <div class="htb-stat-label">RETIRE DATE</div>
+      <div class="htb-stat-val">{{ $retire }}</div>
+    </div>
+    <div class="htb-card-stat htb-stat-right">
+      <div class="htb-stat-label">OS</div>
+      <div class="htb-stat-val htb-stat-os">
+        {{ if eq $os "Linux" }}
+          <svg class="htb-os-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021C7.309.44 5.375 5.073 5.375 7.5c0 3.034 2.15 5.5 4.5 5.5s4.5-2.466 4.5-5.5c0-2.427-1.934-7.06-6.649-7.479A5.52 5.52 0 0012.504 0zm.044 2c.154 0 .304.008.449.023 3.783.345 5.378 3.908 5.378 5.477 0 2.43-1.72 4.5-4 4.5s-4-2.07-4-4.5c0-1.569 1.595-5.132 5.378-5.477A4.023 4.023 0 0112.548 2zM8.5 18c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2-1.343-2-3-2zm7 0c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2-1.343-2-3-2zm-3.5-6c-2.485 0-4.5 1.567-4.5 3.5v1c0 1.933 2.015 3.5 4.5 3.5s4.5-1.567 4.5-3.5v-1c0-1.933-2.015-3.5-4.5-3.5z"/></svg>
+        {{ else if eq $os "Windows" }}
+          <svg class="htb-os-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+        {{ else }}
+          <svg class="htb-os-icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 2a10 10 0 000 20A10 10 0 0012 2z"/></svg>
+        {{ end }}
+        {{ $os }}
+      </div>
+    </div>
+  </div>
+
+  {{/* ── User blood ── */}}
+  <div class="htb-card-blood-row htb-blood-user-row">
+    <div class="htb-blood-label htb-label-red">
+      <svg viewBox="0 0 24 24" fill="currentColor" class="htb-blood-icon"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-7h2v5h-2zm0-4h2v2h-2z"/></svg>
+      USER
+    </div>
+    <div class="htb-blood-right">
+      {{ if $ubtime }}<div class="htb-blood-time">{{ $ubtime }}</div>{{ end }}
+      <div class="htb-blood-who">
+        {{ if $ubimg }}<img src="{{ $ubimg }}" class="htb-who-avatar" alt="{{ $ublood }}">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
+        {{ if $ublood }}
+          {{ if $uburl }}<a href="{{ $uburl }}" target="_blank" rel="noopener noreferrer" class="htb-who-link">{{ $ublood }}</a>{{ else }}<span>{{ $ublood }}</span>{{ end }}
+        {{ else }}<span class="htb-unknown">—</span>{{ end }}
+      </div>
+    </div>
+  </div>
+
+  {{/* ── Root blood ── */}}
+  <div class="htb-card-blood-row htb-blood-root-row">
+    <div class="htb-blood-label htb-label-red">
+      <svg viewBox="0 0 24 24" fill="currentColor" class="htb-blood-icon"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-7h2v5h-2zm0-4h2v2h-2z"/></svg>
+      ROOT
+    </div>
+    <div class="htb-blood-right">
+      {{ if $rbtime }}<div class="htb-blood-time">{{ $rbtime }}</div>{{ end }}
+      <div class="htb-blood-who">
+        {{ if $rbimg }}<img src="{{ $rbimg }}" class="htb-who-avatar" alt="{{ $rblood }}">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
+        {{ if $rblood }}
+          {{ if $rburl }}<a href="{{ $rburl }}" target="_blank" rel="noopener noreferrer" class="htb-who-link">{{ $rblood }}</a>{{ else }}<span>{{ $rblood }}</span>{{ end }}
+        {{ else }}<span class="htb-unknown">—</span>{{ end }}
+      </div>
+    </div>
+  </div>
+
+  {{/* ── Creator ── */}}
+  <div class="htb-card-creator-row">
+    <div class="htb-creator-label">CREATOR</div>
+    <div class="htb-blood-right">
+      <div class="htb-blood-who">
+        {{ if $creatorimg }}<img src="{{ $creatorimg }}" class="htb-who-avatar" alt="{{ $creator }}">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
+        {{ if $creator }}
+          {{ if $creatorurl }}<a href="{{ $creatorurl }}" target="_blank" rel="noopener noreferrer" class="htb-who-link">{{ $creator }}</a>{{ else }}<span>{{ $creator }}</span>{{ end }}
+        {{ else }}<span class="htb-unknown">—</span>{{ end }}
+      </div>
+    </div>
+  </div>
+
+</div>

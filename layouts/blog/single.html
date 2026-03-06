@@ -1,0 +1,49 @@
+{{ define "main" }}
+  <div class='hx:mx-auto hx:flex hextra-max-page-width'>
+    <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]">
+      <main id="content" class="hx:w-full hx:min-w-0 hextra-max-content-width hx:px-6 hx:pt-4 hx:md:px-12">
+        <div class="content">
+          {{ if .Title }}
+          <h1>{{ .Title }}</h1>
+          {{ end }}
+          <div class="post-meta">
+            {{- if .Params.tags -}}
+            <div class="post-tags">{{ partial "tags.html" (dict "context" .) }}</div>
+            {{- end -}}
+            {{- if gt .ReadingTime 0 -}}
+            <span class="post-reading-time">{{ .ReadingTime }} min read</span>
+            {{- end -}}
+          </div>
+          {{ .Content }}
+        </div>
+
+        {{- $pagerURLs := slice -}}
+        {{- with .NextInSection -}}{{- $pagerURLs = $pagerURLs | append .Permalink -}}{{- end -}}
+        {{- with .PrevInSection -}}{{- $pagerURLs = $pagerURLs | append .Permalink -}}{{- end -}}
+        {{- $related := slice -}}
+        {{- range .Site.RegularPages.Related . -}}
+          {{- if not (in $pagerURLs .Permalink) -}}
+            {{- $related = $related | append . -}}
+          {{- end -}}
+        {{- end -}}
+        {{- $related = first 3 $related -}}
+        {{- with $related -}}
+        <div class="related-posts">
+          <h3 class="related-posts-title">Continue Reading</h3>
+          <div class="related-posts-list">
+            {{- range . -}}
+            <a href="{{ .Permalink }}" class="related-post-item">
+              <span class="related-post-title">{{ .Title }}</span>
+              <span class="related-post-date">{{ .Date.Format "Jan 2006" }}</span>
+            </a>
+            {{- end -}}
+          </div>
+        </div>
+        {{- end -}}
+
+        {{ partial "components/pager.html" . }}
+
+      </main>
+    </article>
+  </div>
+{{ end }}

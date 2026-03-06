@@ -1,0 +1,29 @@
+{{- $sections := slice "/blog" "/docs/htb" "/docs/redteam" "/docs/blueteam" "/docs/applocker" -}}
+{{- $iconMap  := dict "/blog" "pencil-alt" "/docs/htb" "terminal" "/docs/redteam" "shield-exclamation" "/docs/blueteam" "shield-check" "/docs/applocker" "lock-closed" -}}
+{{- $pages := slice -}}
+{{- range $sections -}}
+  {{- $sec := site.GetPage . -}}
+  {{- if $sec -}}
+    {{- range $sec.RegularPages -}}
+      {{- $pages = $pages | append . -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $pages = sort $pages "Date" "desc" -}}
+{{- $latest := first 3 $pages -}}
+
+<div class="latest-posts">
+  {{- range $latest -}}
+  {{- $secPath := strings.TrimSuffix "/" .CurrentSection.RelPermalink -}}
+  {{- $iconName := index $iconMap $secPath | default "document" -}}
+  <a href="{{ .RelPermalink }}" class="latest-post-item">
+    <span class="latest-post-title">{{ .Title }}</span>
+    <span class="latest-post-meta">
+      <span class="latest-post-icon">{{ partial "utils/icon.html" (dict "name" $iconName "attributes" "height=\"13\" width=\"13\"") }}</span>
+      <span class="latest-post-section">{{ .CurrentSection.Title }}</span>
+      <span class="latest-post-dot">·</span>
+      <span class="latest-post-date">{{ .Date.Format "Jan 2006" }}</span>
+    </span>
+  </a>
+  {{- end -}}
+</div>
