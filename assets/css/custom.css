@@ -3,6 +3,17 @@
   --hextra-max-page-width: 90rem;
 }
 
+/* Prevent horizontal overflow on mobile */
+@media (max-width: 767px) {
+  html {
+    overflow-x: hidden;
+  }
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+}
+
 /* Card content — align to top instead of bottom */
 .hextra-card > div {
   margin-top: 0 !important;
@@ -268,7 +279,9 @@ body:has(.hextra-home) .hextra-content {
 .dark .latest-post-date { color: #6b7280; }
 
 @media (max-width: 640px) {
-  .latest-post-item {
+  .latest-post-item,
+  .related-post-item,
+  .tag-post-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.25rem;
@@ -694,29 +707,31 @@ body:has(.hextra-home) .hextra-content {
 #hextra-sidebar-toggle:hover { background: rgba(0,0,0,0.05); }
 .dark #hextra-sidebar-toggle:hover { background: rgba(255,255,255,0.05); }
 
-/* Sidebar collapse transition */
-.hextra-sidebar-container { transition: width 0.3s ease, min-width 0.3s ease; }
-.hextra-sidebar-container.hx-collapsed .hextra-scrollbar {
-  width: 0 !important;
-  min-width: 0 !important;
-  overflow: hidden !important;
-  opacity: 0;
-  padding: 0 !important;
+/* Sidebar collapse transition (desktop only) */
+@media (min-width: 768px) {
+  .hextra-sidebar-container { transition: width 0.3s ease, min-width 0.3s ease; }
+  .hextra-sidebar-container.hx-collapsed .hextra-scrollbar {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    opacity: 0;
+    padding: 0 !important;
+  }
+  .hextra-sidebar-container.hx-collapsed {
+    width: 64px !important;
+    min-width: 64px !important;
+  }
+  .hextra-sidebar-container.hx-collapsed .hextra-theme-toggle span { display: none !important; }
+  .hextra-sidebar-container.hx-collapsed [data-toggle-animation="show"] {
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 64px !important;
+  }
+  .hextra-sidebar-container.hx-collapsed .hx\:md\:hidden { display: none !important; }
 }
-.hextra-sidebar-container.hx-collapsed {
-  width: 64px !important;
-  min-width: 64px !important;
-}
-.hextra-sidebar-container.hx-collapsed .hextra-theme-toggle span { display: none !important; }
-.hextra-sidebar-container.hx-collapsed [data-toggle-animation="show"] {
-  justify-content: center !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  width: 64px !important;
-}
-.hextra-sidebar-container.hx-collapsed .hx\:md\:hidden { display: none !important; }
 
 /* Reading progress bar */
 #reading-progress {
