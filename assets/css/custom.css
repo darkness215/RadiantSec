@@ -263,6 +263,14 @@ body:has(.hextra-home) .hextra-content {
 .latest-post-date { font-size: 0.75rem; color: #9ca3af; }
 .dark .latest-post-date { color: #6b7280; }
 
+@media (max-width: 640px) {
+  .latest-post-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+}
+
 /* Post meta (tags + reading time) */
 .post-meta {
   display: flex;
