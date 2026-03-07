@@ -161,7 +161,7 @@ The report requirement is something I think gets overlooked when people research
 
 It is not easy. But do the work properly and the exam will take care of itself.
 
-If you are preparing for it and have questions, feel free to reach out on Discord — `batman.damned`
+If you are preparing for it and have questions, feel free to reach out on Discord — `darkness215`
 
 ---
 

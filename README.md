@@ -62,5 +62,5 @@ Output is placed in the `public/` directory.
 
 ## Contact
 
-Discord: `batman.damned`
+Discord: `darkness215`
 GitHub: [darkness215](https://github.com/darkness215)

@@ -195,4 +195,4 @@ One honest critique: the exam environment is not particularly realistic. That do
 
 I still recommend OSEP. Just go in knowing the environment is not representative of what you will face in the real world, but it does teach you how to evade AV by writing custom tools, and that skill is very real.
 
-If you are preparing for it and have questions, feel free to reach out on Discord — `batman.damned`
+If you are preparing for it and have questions, feel free to reach out on Discord — `darkness215`

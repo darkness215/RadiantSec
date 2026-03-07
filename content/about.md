@@ -35,5 +35,5 @@ This site is my public notebook, a place to document what I learn as I break thi
 
 - GitHub: [darkness215](https://github.com/darkness215)
 - LinkedIn: [Prathamesh Praghanmol](https://www.linkedin.com/in/prathamesh-praghanmol/)
-- Discord: `batman.damned`
+- Discord: `darkness215`
 - HTB: [darkness215](https://app.hackthebox.com/users/2187012)
