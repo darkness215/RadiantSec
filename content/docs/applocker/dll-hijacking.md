@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — DLL Hijacking and Side-Loading"
+title: "AppLocker Bypass: DLL Hijacking and Side-Loading"
 date: 2026-03-06
 description: "DLL search order hijacking, DLL side-loading, and COR_PROFILER abuse to execute code inside AppLocker-trusted processes — with Process Monitor methodology, C payload code, and blue team detection."
 tags: ["applocker", "bypass", "dll-hijacking", "side-loading", "cor-profiler", "evasion", "windows", "blueteam"]

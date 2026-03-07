@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — BgInfo VBScript Execution"
+title: "AppLocker Bypass: BgInfo VBScript Execution"
 date: 2026-03-06
 description: "Abusing BgInfo's OLE .bgi configuration files to execute VBScript payloads under a Microsoft-signed binary, including GPO share persistence and Python tooling to generate weaponised .bgi files."
 tags: ["applocker", "bypass", "bginfo", "vbscript", "ole", "persistence", "evasion", "windows", "blueteam"]

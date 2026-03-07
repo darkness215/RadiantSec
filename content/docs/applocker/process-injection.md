@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — Process Injection"
+title: "AppLocker Bypass: Process Injection"
 date: 2026-03-06
 description: "Process injection techniques for AppLocker-constrained environments — DLL injection, PE injection, APC injection, and process hollowing — with C# implementations and Sysmon-based detection."
 tags: ["applocker", "bypass", "process-injection", "process-hollowing", "apc", "evasion", "windows", "blueteam"]

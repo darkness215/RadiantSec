@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — UAC Bypass"
+title: "AppLocker Bypass: UAC Bypass"
 date: 2026-03-06
 description: "UAC bypass techniques in AppLocker-constrained environments — auto-elevating binaries, COM object hijacking, and token manipulation — with MITRE mapping and blue team detection."
 tags: ["applocker", "bypass", "uac", "privilege-escalation", "evasion", "windows", "blueteam"]

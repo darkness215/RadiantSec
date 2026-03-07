@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — Reflective Assembly Load"
+title: "AppLocker Bypass: Reflective Assembly Load"
 date: 2026-03-06
 description: "Bypassing AppLocker using .NET Assembly.Load() via PowerShell reflection, InstallUtil, and MSBuild inline tasks — with payload code, a Python DLL embedder, and Sysmon detection rules."
 tags: ["applocker", "bypass", "assembly-load", "installutil", "msbuild", "dotnet", "evasion", "windows", "blueteam"]

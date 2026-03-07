@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — Regsvr32 (Squiblydoo)"
+title: "AppLocker Bypass: Regsvr32 (Squiblydoo)"
 date: 2026-03-06
 description: "Squiblydoo: abusing regsvr32.exe and COM scriptlets to execute arbitrary JScript or VBScript remotely and locally, bypassing AppLocker default rules with a Microsoft-signed binary."
 tags: ["applocker", "bypass", "regsvr32", "squiblydoo", "sct", "lolbins", "evasion", "windows", "blueteam"]

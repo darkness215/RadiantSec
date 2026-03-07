@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass - Regasm and Regsvcs"
+title: "AppLocker Bypass: Regasm and Regsvcs"
 date: 2026-03-06
 description: "A practical red team guide to bypassing AppLocker using Regasm.exe and Regsvcs.exe through COM object abuse, covering payload development, default and configured rule bypasses, and OPSEC considerations."
 tags: ["redteam", "applocker", "bypass", "regasm", "regsvcs", "lolbins", "windows", "evasion"]

@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — Trusted Folder Abuse"
+title: "AppLocker Bypass: Trusted Folder Abuse"
 date: 2026-03-06
 description: "Exploiting writable directories inside AppLocker-trusted paths — C:\\Windows\\Tasks, spool\\drivers\\color, and others — via direct execution, directory junctions, DLL hijacking, and environment variable manipulation."
 tags: ["applocker", "bypass", "trusted-folders", "dll-hijacking", "lolbins", "evasion", "windows", "blueteam"]

@@ -157,7 +157,7 @@ Once I ended the exam I slept for **12 to 14 hours**. Came back fresh, started w
 
 ## Writing the Exam Report
 
-I used the same approach as CPTS, **[SysReptor](https://docs.sysreptor.com/offsec-reporting-with-sysreptor/)** for structure and formatting, and **ChatGPT** to help write the executive summary and clean up finding descriptions.
+I used the same approach as CPTS, **[SysReptor](https://docs.sysreptor.com/offsec-reporting-with-sysreptor/)** for structure and formatting.
 
 The OSEP report requires more technical depth than CPTS. Each finding needs to demonstrate not just what you did but how the evasion worked and why it was effective. Document your payloads, your evasion approach, and the reasoning behind your technique choices, not just the commands you ran.
 

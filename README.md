@@ -1,4 +1,4 @@
-# RadiantSec
+# Radiant Sec
 
 Personal security research site built with Hugo and the Hextra theme.
 Published at [radiantsec.io](https://radiantsec.io).

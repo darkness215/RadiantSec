@@ -1,5 +1,5 @@
 ---
-title: "AppLocker Bypass — File Extension Blind Spots"
+title: "AppLocker Bypass: File Extension Blind Spots"
 date: 2026-03-06
 description: "Six extension-based AppLocker bypass vectors — HTA via mshta, WSF via wscript, XSL via wmic, INF via cmstp, CPL via control.exe, and NTFS alternate data streams — with payloads and a Python C2 server."
 tags: ["applocker", "bypass", "hta", "wsf", "xsl", "ads", "lolbins", "evasion", "windows", "blueteam"]
