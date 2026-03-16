@@ -8,4 +8,5 @@ Writeups for retired Hack The Box machines. Each post covers the full attack pat
 {{< cards >}}
   {{< card link="/docs/htb/expressway" title="HTB - Expressway" icon="terminal" subtitle="Easy — Linux. IKE/IPSec PSK cracking, sudo 1.9.17 hostname bypass (CVE-2025-32462)." >}}
   {{< card link="/docs/htb/remote" title="HTB - Remote" icon="terminal" subtitle="Easy — Windows. NFS enumeration, Umbraco RCE, TeamViewer CVE-2019-18988." >}}
+  {{< card link="/docs/htb/gavel" title="HTB - Gavel" icon="terminal" subtitle="Medium — Linux. .git disclosure, PDO SQLi null-byte bypass, runkit RCE, RULE_PATH privesc." >}}
 {{< /cards >}}
