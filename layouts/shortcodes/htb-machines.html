@@ -1,0 +1,104 @@
+{{- /* Generated, filterable HTB machine grid.
+
+   Driven entirely by front matter: difficulty, os, summary. Adding a machine
+   needs no edit here — drop the .md in and it appears.
+
+   `summary` must stay under ~75 characters: the card subtitle is clamped to
+   three lines (hextra-card-subtitle hx:line-clamp-3) and anything longer
+   truncates mid-word at 3-column width. */ -}}
+
+{{- $section := site.GetPage "/docs/htb" -}}
+{{- /* Recursive: .RegularPages stops at direct children and would silently
+     skip any machine filed in a subdirectory. This bug has shipped twice. */ -}}
+{{- $machines := where $section.RegularPagesRecursive "Params.difficulty" "!=" nil -}}
+
+{{- /* Difficulty ordering. Alphabetical is wrong: Easy, Hard, Insane, Medium. */ -}}
+{{- $order := dict "Easy" 1 "Medium" 2 "Hard" 3 "Insane" 4 -}}
+{{- $colors := dict "Easy" "green" "Medium" "amber" "Hard" "red" "Insane" "purple" -}}
+
+{{- /* Only offer chips for values that actually occur, so no empty
+     "Hard" filter appears while no hard machine exists. Built by walking the
+     rank order rather than sorting the found values, so chips read
+     Easy -> Insane instead of alphabetically. */ -}}
+{{- $found := slice -}}
+{{- range $machines -}}
+  {{- with .Params.difficulty -}}
+    {{- if not (in $found .) -}}{{- $found = $found | append . -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $diffsPresent := slice -}}
+{{- range $name := (slice "Easy" "Medium" "Hard" "Insane") -}}
+  {{- if in $found $name -}}{{- $diffsPresent = $diffsPresent | append $name -}}{{- end -}}
+{{- end -}}
+
+{{- $osPresent := slice -}}
+{{- range $machines -}}
+  {{- with .Params.os -}}
+    {{- if not (in $osPresent .) -}}{{- $osPresent = $osPresent | append . -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- /* Plain string slice: sort takes no key argument here. */ -}}
+{{- $osPresent = sort $osPresent -}}
+
+<div class="htb-filters" data-htb-filters>
+  {{- /* Native <select> rather than segmented controls or a custom dropdown:
+       width stays constant as Hard/Insane machines are added, and the browser
+       supplies keyboard nav, screen-reader semantics and a native mobile
+       picker for free. */ -}}
+  <div class="htb-filter-group">
+    <label class="htb-filter-label" for="htb-filter-difficulty">Difficulty</label>
+    <select class="htb-select" id="htb-filter-difficulty" data-filter-group="difficulty">
+      <option value="all">All</option>
+      {{- range $d := $diffsPresent -}}
+        <option value="{{ $d | urlize }}">{{ $d }}</option>
+      {{- end -}}
+    </select>
+  </div>
+
+  {{- if gt (len $osPresent) 1 }}
+  <div class="htb-filter-group">
+    <label class="htb-filter-label" for="htb-filter-os">OS</label>
+    <select class="htb-select" id="htb-filter-os" data-filter-group="os">
+      <option value="all">All</option>
+      {{- range $o := $osPresent -}}
+        <option value="{{ $o | urlize }}">{{ $o }}</option>
+      {{- end -}}
+    </select>
+  </div>
+  {{- end }}
+
+  <div class="htb-filter-group">
+    <label class="htb-filter-label" for="htb-sort">Sort</label>
+    <select class="htb-select" id="htb-sort" data-sort-select>
+      <option value="date">Newest</option>
+      <option value="difficulty">Difficulty</option>
+    </select>
+  </div>
+</div>
+
+<p class="htb-count" data-htb-count>{{ len $machines }} machine{{ if ne (len $machines) 1 }}s{{ end }}</p>
+
+<div class="hextra-cards hx:mt-4 hx:gap-4 hx:grid not-prose topic-grid" style="--hextra-cards-grid-cols: 3;" data-htb-grid>
+  {{- range $machines -}}
+    {{- $diff := .Params.difficulty -}}
+    {{- $rank := index $order $diff | default 99 -}}
+    {{- /* display:contents on the wrapper keeps the <a> as the grid item, so
+         the data attributes cost nothing in layout. */ -}}
+    <div class="htb-machine"
+         data-difficulty="{{ $diff | urlize }}"
+         data-os="{{ .Params.os | urlize }}"
+         data-rank="{{ $rank }}"
+         data-date="{{ .Date.Format "2006-01-02" }}">
+      {{ partial "shortcodes/card.html" (dict
+        "link" .RelPermalink
+        "title" .Title
+        "icon" "terminal"
+        "subtitle" .Params.summary
+        "tag" $diff
+        "tagColor" (index $colors $diff | default "gray")
+      ) }}
+    </div>
+  {{- end -}}
+</div>
+
+<p class="htb-empty" data-htb-empty hidden>No machines match that combination.</p>

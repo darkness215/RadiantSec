@@ -1,8 +1,11 @@
 ---
 title: "HTB - Conversor"
 date: 2026-03-21
-description: "Easy Linux machine featuring Flask source code disclosure, arbitrary file write via os.path.join directory traversal into a cron-executed scripts directory, MD5 hash cracking for lateral movement, and root via CVE-2024-48990 PYTHONPATH poisoning in needrestart."
+description: "Easy Linux box: Flask source disclosure and an os.path.join traversal write into a cron directory, then root via CVE-2024-48990 PYTHONPATH poisoning."
 tags: ["htb", "linux", "easy", "flask", "python", "xslt", "directory-traversal", "os-path-join", "cron", "sqlite", "needrestart", "cve-2024-48990", "privesc"]
+difficulty: "Easy"
+os: "Linux"
+summary: "Linux box: cron-dir path traversal, then needrestart PYTHONPATH poisoning."
 tools: ["nmap", "ffuf", "burp", "sqlite3", "hashcat"]
 ---
 
@@ -10,22 +13,22 @@ Conversor is an Easy Linux machine running a Flask web application that converts
 
 {{< htb-box-info
   name="Conversor"
-  avatar="https://htb-mp-prod-public-storage.s3.eu-central-1.amazonaws.com/avatars/0b659c391f2803c247e79c77a3284f96.png"
+  avatar="/images/htb/machines/conversor.png"
   os="Linux"
   difficulty="Easy"
   release="25 Oct 2025"
   retire="21 Mar 2026"
   user_blood="NLTE"
   user_blood_url="https://app.hackthebox.com/users/260094"
-  user_blood_img="https://account.hackthebox.com/storage/users/5106f57b-8e24-4238-b682-0bf5f1a7baec-avatar.png"
+  user_blood_img="/images/htb/avatars/nlte.png"
   user_blood_time="00:09:04"
   root_blood="NLTE"
   root_blood_url="https://app.hackthebox.com/users/260094"
-  root_blood_img="https://account.hackthebox.com/storage/users/5106f57b-8e24-4238-b682-0bf5f1a7baec-avatar.png"
+  root_blood_img="/images/htb/avatars/nlte.png"
   root_blood_time="00:21:57"
   creator="FisMatHack"
   creator_url="https://app.hackthebox.com/users/1076236"
-  creator_img="https://account.hackthebox.com/storage/users/a45cd394-1a65-454a-bc49-1fd3981fcf00-avatar.png"
+  creator_img="/images/htb/avatars/fismathack.png"
 >}}
 
 ---
@@ -451,4 +454,4 @@ No CVE required. The config file is eval'd as Perl and runs as root.
 
 **CVE-2024-48990 in needrestart**: needrestart before version 3.8 inherits environment variables from scanned processes without sanitization. Since `PYTHONPATH` controls where Python looks for modules, an attacker running a Python process with a poisoned `PYTHONPATH` gets arbitrary code execution the next time needrestart runs as root. Upgrade to needrestart 3.8 or later.
 
-**needrestart config file execution**: Passing a custom config file to needrestart via `-c` executes that file as Perl. If `sudo` allows running needrestart without a password, any Perl code in a user-controlled file runs as root. Restrict `sudo` entries to the minimum necessary and avoid `NOPASSWD` on tools that accept arbitrary file arguments.
+**needrestart config file execution**: Passing a custom config file to needrestart via `-c` executes that file as Perl. If `sudo` allows running needrestart without a password, any Perl code in a user-controlled file runs as root. Restrict `sudo` entries to the minimum necessary and avoid `NOPASSWD` on tools that accept arbitrary file arguments. [Expressway](/docs/htb/expressway/) shows the same lesson from a different angle: there the weakness is a vulnerable `sudo` binary rather than a permissive rule.

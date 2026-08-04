@@ -1,8 +1,11 @@
 ---
 title: "HTB - Remote"
 date: 2026-03-06
-description: "Easy Windows machine. NFS exposes a world-readable site backup containing Umbraco CMS credentials. An authenticated XSLT RCE exploit lands a shell as IIS AppPool. TeamViewer 7 stores its password encrypted with a hardcoded AES key in the registry — a Python one-liner decrypts it and the password is reused on the Administrator account."
-tags: ["hackthebox", "windows", "easy", "nfs", "umbraco", "cms", "rce", "teamviewer", "cve-2019-18988", "hashcat", "evil-winrm", "nishang", "aes", "registry"]
+description: "Easy Windows box: NFS leaks a site backup with Umbraco credentials, XSLT RCE lands a shell, and a TeamViewer registry password escalates to Administrator."
+tags: ["htb", "windows", "easy", "nfs", "umbraco", "cms", "rce", "teamviewer", "cve-2019-18988", "hashcat", "evil-winrm", "nishang", "aes", "registry"]
+difficulty: "Easy"
+os: "Windows"
+summary: "Windows box: NFS leaks Umbraco creds, then a TeamViewer registry password."
 tools: ["Nmap", "hashcat", "Nishang", "evil-winrm", "Impacket"]
 ---
 
@@ -12,9 +15,9 @@ tools: ["Nmap", "hashcat", "Nishang", "evil-winrm", "Impacket"]
 **Attack Path:** NFS `/site_backups` → `Umbraco.sdf` SHA1 hash → hashcat → Umbraco 7.12.4 XSLT RCE → IIS AppPool shell → TeamViewer registry → AES decrypt → `!R3m0te!` → administrator
 {{< /callout >}}
 
-Remote is an Easy Windows machine where everything important is hiding in plain sight. The HTTP site advertises Umbraco CMS, FTP is open but empty, SMB denies access, and then NFS shows up — uncommon on Windows — exposing a full site backup to unauthenticated anyone. The backup contains the Umbraco database file, which strings reveals an admin SHA1 hash. Hashcat cracks it in seconds. Authenticated RCE via a public XSLT exploit delivers a Nishang reverse shell as the IIS app pool identity. On the box, TeamViewer 7 is running as a service. Its password is stored in the registry encrypted with AES-128-CBC using a hardcoded static key — a short Python script decrypts it to `!R3m0te!`, which is reused on the local Administrator account.
+Remote is an Easy Windows machine where everything important is hiding in plain sight. The HTTP site advertises Umbraco CMS, FTP is open but empty, SMB denies access, and then NFS shows up, uncommon on Windows, exposing a full site backup to unauthenticated anyone. The backup contains the Umbraco database file, which strings reveals an admin SHA1 hash. Hashcat cracks it in seconds. Authenticated RCE via a public XSLT exploit delivers a Nishang reverse shell as the IIS app pool identity. On the box, TeamViewer 7 is running as a service. Its password is stored in the registry encrypted with AES-128-CBC using a hardcoded static key. A short Python script decrypts it to `!R3m0te!`, which is reused on the local Administrator account.
 
-{{< htb-box-info name="Remote" avatar="https://htb-mp-prod-public-storage.s3.eu-central-1.amazonaws.com/avatars/8d7c152dc9c28c9556b07dc724c6a37b.png" os="Windows" difficulty="Easy" release="21 Mar 2020" retire="01 Sep 2020" user_blood="enjiloezz" user_blood_url="https://app.hackthebox.com/users/23792" user_blood_img="https://account.hackthebox.com/storage/users/b5d1899f-6e3f-4406-9d41-5fe7df387e89-avatar.png" user_blood_time="00:57:49" root_blood="qtc" root_blood_url="https://app.hackthebox.com/users/103578" root_blood_img="https://account.hackthebox.com/storage/users/cce7f972-010d-469a-b319-d0d4da1767d9-avatar.png" root_blood_time="01:04:46" creator="mrb3n8132" creator_url="https://app.hackthebox.com/users/2984" creator_img="https://account.hackthebox.com/storage/users/a07ab1f7-c03c-4fc5-8381-68bfd3f453c2-avatar.png" >}}
+{{< htb-box-info name="Remote" avatar="/images/htb/machines/remote.png" os="Windows" difficulty="Easy" release="21 Mar 2020" retire="01 Sep 2020" user_blood="enjiloezz" user_blood_url="https://app.hackthebox.com/users/23792" user_blood_img="/images/htb/avatars/enjiloezz.png" user_blood_time="00:57:49" root_blood="qtc" root_blood_url="https://app.hackthebox.com/users/103578" root_blood_img="/images/htb/avatars/qtc.png" root_blood_time="01:04:46" creator="mrb3n8132" creator_url="https://app.hackthebox.com/users/2984" creator_img="/images/htb/avatars/mrb3n8132.png" >}}
 
 ---
 
@@ -28,7 +31,7 @@ Full TCP port sweep first:
 nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.129.230.172
 ```
 
-```
+``` {linenos=table}
 PORT      STATE SERVICE
 21/tcp    open  ftp
 80/tcp    open  http
@@ -91,7 +94,7 @@ smbmap -H 10.129.230.172
 Port 80 serves an Acme Widgets site. Poking around the pages turns up multiple references to Umbraco: CSS links, JavaScript links, and text references near the blog posts. Googling the CMS confirms the admin panel lives at `/umbraco`. It loads a login form. Default credential attempts fail.
 
 {{< callout type="info" >}}
-Umbraco 7.12.4 has a public authenticated RCE exploit via XSLT injection. Credentials are needed before that is useful — the NFS share will provide them.
+Umbraco 7.12.4 has a public authenticated RCE exploit via XSLT injection. Credentials are needed before that is useful. The NFS share will provide them.
 {{< /callout >}}
 
 ### NFS
@@ -113,7 +116,7 @@ Mount it:
 mount -t nfs 10.129.230.172:/site_backups /mnt/
 ```
 
-The mount is a full web directory backup including `App_Data`, `Config`, `Views`, and `Web.config`. Inside `App_Data` is `Umbraco.sdf` — a SQL Server Compact database file. Running `strings` on it pulls readable data from the top:
+The mount is a full web directory backup including `App_Data`, `Config`, `Views`, and `Web.config`. Inside `App_Data` is `Umbraco.sdf`, a SQL Server Compact database file. Running `strings` on it pulls readable data from the top:
 
 ```bash
 strings /mnt/App_Data/Umbraco.sdf | head
@@ -125,7 +128,7 @@ adminadmin@htb.localb8be16afba8c314ad33d812f22a04991b90e2aaa{"hashAlgorithm":"SH
 smithsmith@htb.localjxDUCcruzN8rSRlqnfmvqw==AIKYyl6Fyy29KA3htB/ERiyJUAdpTtFeTpnIk9CiHts={"hashAlgorithm":"HMACSHA256"}
 ```
 
-Two accounts visible. The `admin@htb.local` account uses SHA1 — straightforward to crack. The `smith` account uses HMACSHA256 with a salt, harder to attack. The admin hash is the target.
+Two accounts visible. The `admin@htb.local` account uses SHA1, straightforward to crack. The `smith` account uses HMACSHA256 with a salt, harder to attack. The admin hash is the target.
 
 ---
 
@@ -153,7 +156,7 @@ Credentials recovered: `admin@htb.local:baconandcheese`
 
 Login to `/umbraco` with `admin@htb.local:baconandcheese` works. The Help section confirms the version: **7.12.4**.
 
-A public Python exploit for Umbraco authenticated RCE abuses an XSLT transform that executes C# code server-side. The exploit needs three values set: login, password, and host. The payload section controls what gets executed — it spawns a process by filename plus arguments:
+A public Python exploit for Umbraco authenticated RCE abuses an XSLT transform that executes C# code server-side. The exploit needs three values set: login, password, and host. The payload section controls what gets executed. It spawns a process by filename plus arguments:
 
 ```python
 login    = "admin@htb.local"
@@ -240,7 +243,7 @@ Mode    LastWriteTime    Name
 d-----  2/27/2020        Version7
 ```
 
-Version 7 is installed. Versions 7.0.43148 through 14.7.1965 store connection passwords in the Windows registry encrypted with AES-128-CBC using a **hardcoded key and IV** — the same values in every installation. This is CVE-2019-18988.
+Version 7 is installed. Versions 7.0.43148 through 14.7.1965 store connection passwords in the Windows registry encrypted with AES-128-CBC using a **hardcoded key and IV**, the same values in every installation. This is CVE-2019-18988.
 
 ### Registry Credential Recovery
 
@@ -257,13 +260,13 @@ SecurityPasswordAES : {255, 155, 28, 115, 214, 107, 206, 49, 172, 65, 62, 174,
                        126, 141, 55, 107, 38, 57, 78, 91}
 ```
 
-`SecurityPasswordAES` is present — a list of integers representing the ciphertext bytes.
+`SecurityPasswordAES` is present, a list of integers representing the ciphertext bytes.
 
 ### Decrypting the Password
 
 The Metasploit module source reveals the hardcoded key and IV. Recreating the decryption in Python:
 
-```python
+```python {linenos=table}
 from Crypto.Cipher import AES
 
 key = b"\x06\x02\x00\x00\x00\xa4\x00\x00\x52\x53\x41\x31\x00\x04\x00\x00"
@@ -344,16 +347,16 @@ e2ae****************************
 | Step | Technique |
 |------|-----------|
 | Discovery | NFS `/site_backups` exported to everyone |
-| Credential recovery | `strings` on `Umbraco.sdf` — SHA1 hash for `admin@htb.local` |
-| Cracking | hashcat mode 100 (SHA1) — `baconandcheese` |
-| Foothold | Umbraco 7.12.4 authenticated XSLT RCE — IIS AppPool shell |
+| Credential recovery | `strings` on `Umbraco.sdf`: SHA1 hash for `admin@htb.local` |
+| Cracking | hashcat mode 100 (SHA1): `baconandcheese` |
+| Foothold | Umbraco 7.12.4 authenticated XSLT RCE: IIS AppPool shell |
 | Enumeration | `tasklist` reveals TeamViewer 7 service |
-| Credential recovery | `SecurityPasswordAES` from registry — AES-128-CBC with hardcoded key |
+| Credential recovery | `SecurityPasswordAES` from registry: AES-128-CBC with hardcoded key |
 | Decryption | Python script decrypts to `!R3m0te!` |
 | Administrator | Evil-WinRM / psexec.py / wmiexec.py with recovered credentials |
 
 ## Key Takeaways
 
-NFS on a Windows machine is immediately worth investigating. It is uncommon enough that its presence is a signal, and world-readable exports are a consistent finding — administrators enable it for backup or deployment workflows and leave the access control wide open. The site backup here is a complete web root including the database, which contains credentials in a format that falls to rockyou in seconds.
+NFS on a Windows machine is immediately worth investigating. It is uncommon enough that its presence is a signal, and world-readable exports are a consistent finding. Administrators enable it for backup or deployment workflows and leave the access control wide open. The site backup here is a complete web root including the database, which contains credentials in a format that falls to rockyou in seconds.
 
-The TeamViewer vulnerability is a good example of a class of credential exposure that affects installed software rather than the OS. The AES key and IV are hardcoded in every Version 7 installation, meaning any low-privilege process can read the encrypted registry value and decrypt it without any elevated access. The lesson is not specific to TeamViewer: any installed application that stores credentials encrypted with a symmetric key baked into the binary is vulnerable to the same approach. During post-exploitation on Windows, checking for remote access software (TeamViewer, VNC, AnyDesk) and recovering their stored credentials is a reliable step — they are frequently reused on local or domain accounts.
+The TeamViewer vulnerability is a good example of a class of credential exposure that affects installed software rather than the OS. The AES key and IV are hardcoded in every Version 7 installation, meaning any low-privilege process can read the encrypted registry value and decrypt it without any elevated access. The lesson is not specific to TeamViewer: any installed application that stores credentials encrypted with a symmetric key baked into the binary is vulnerable to the same approach. During post-exploitation on Windows, checking for remote access software (TeamViewer, VNC, AnyDesk) and recovering their stored credentials is a reliable step, and it belongs alongside the LSASS and SAM routes covered in [Credential Dumping](/docs/redteam/credential-dumping/). Recovered passwords are frequently reused on local or domain accounts.

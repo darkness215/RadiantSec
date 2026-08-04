@@ -40,15 +40,96 @@ document.addEventListener('DOMContentLoaded', initSidebarToggle);
 window.addEventListener('load', initSidebarToggle);
 setTimeout(initSidebarToggle, 300);
 
-// Reading progress bar
-document.addEventListener('DOMContentLoaded', function() {
+// Hero search button focuses the navbar search input.
+// If the input isn't present (or search is collapsed on mobile), the anchor's
+// own href is left intact as the fallback.
+document.addEventListener('DOMContentLoaded', function () {
+  var btn = document.getElementById('hero-search-btn');
+  if (!btn) return;
+
+  // Resolved on click, not at load, so resizing across the breakpoint can't
+  // leave a dead button.
+  btn.addEventListener('click', function (e) {
+    var input = document.querySelector('.hextra-search-input');
+    if (!input || input.offsetParent === null) return;
+    e.preventDefault();
+    input.scrollIntoView({ block: 'center' });
+    input.focus();
+  });
+});
+
+// Reading progress bar.
+// The handler reads scrollHeight/clientHeight, which forces layout, so it is
+// coalesced into one rAF per frame instead of running on every scroll event.
+// Passive listener so it never blocks scrolling.
+document.addEventListener('DOMContentLoaded', function () {
+  if (document.getElementById('reading-progress')) return;
+
   var bar = document.createElement('div');
   bar.id = 'reading-progress';
   document.body.prepend(bar);
 
-  window.addEventListener('scroll', function() {
-    var scrollTop = document.documentElement.scrollTop;
-    var scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-    bar.style.width = (scrollHeight > 0 ? (scrollTop / scrollHeight * 100) : 0) + '%';
+  var ticking = false;
+  function update() {
+    var doc = document.documentElement;
+    var max = doc.scrollHeight - doc.clientHeight;
+    bar.style.width = (max > 0 ? (doc.scrollTop / max * 100) : 0) + '%';
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', function () {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(update);
+  }, { passive: true });
+});
+
+// HTB machine index: difficulty/OS filtering and sorting via native <select>.
+// Progressive enhancement — the grid renders complete and visible without JS;
+// this only wires up the selects if they exist on the page.
+document.addEventListener('DOMContentLoaded', function () {
+  var filters = document.querySelector('[data-htb-filters]');
+  var grid = document.querySelector('[data-htb-grid]');
+  if (!filters || !grid) return;
+
+  var cards = Array.prototype.slice.call(grid.querySelectorAll('.htb-machine'));
+  var countEl = document.querySelector('[data-htb-count]');
+  var emptyEl = document.querySelector('[data-htb-empty]');
+  var active = { difficulty: 'all', os: 'all' };
+
+  function apply() {
+    var shown = 0;
+    cards.forEach(function (card) {
+      var okDiff = active.difficulty === 'all' || card.dataset.difficulty === active.difficulty;
+      var okOs = active.os === 'all' || card.dataset.os === active.os;
+      var visible = okDiff && okOs;
+      card.hidden = !visible;
+      if (visible) shown++;
+    });
+    if (countEl) countEl.textContent = shown + ' machine' + (shown === 1 ? '' : 's');
+    if (emptyEl) emptyEl.hidden = shown !== 0;
+  }
+
+  filters.querySelectorAll('select[data-filter-group]').forEach(function (select) {
+    var name = select.dataset.filterGroup;
+    select.addEventListener('change', function () {
+      active[name] = select.value;
+      apply();
+    });
   });
+
+  var sortSelect = filters.querySelector('[data-sort-select]');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', function () {
+      var mode = sortSelect.value;
+      var ordered = cards.slice().sort(function (a, b) {
+        if (mode === 'difficulty') {
+          return (a.dataset.rank - b.dataset.rank) ||
+                 b.dataset.date.localeCompare(a.dataset.date);
+        }
+        return b.dataset.date.localeCompare(a.dataset.date);
+      });
+      ordered.forEach(function (c) { grid.appendChild(c); });
+    });
+  }
 });

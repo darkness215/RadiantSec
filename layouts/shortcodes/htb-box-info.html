@@ -16,7 +16,9 @@
 {{ $creatorurl := .Get "creator_url" }}
 {{ $creatorimg := .Get "creator_img" }}
 
-{{ $diffSlug := lower $diff }}
+{{- /* urlize, not lower: a multi-word difficulty would otherwise emit a class
+     containing a space (htb-diff-very easy), which is invalid. */ -}}
+{{ $diffSlug := urlize $diff }}
 
 <div class="htb-card">
 
@@ -24,7 +26,7 @@
   <div class="htb-card-header">
     <div class="htb-card-avatar">
       {{ if $avatar }}
-        <img src="{{ $avatar }}" alt="{{ $name }}">
+        <img src="{{ $avatar }}" alt="{{ $name }} machine avatar" width="46" height="46" loading="lazy" decoding="async">
       {{ else }}
         <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect width="40" height="40" rx="6" fill="#1a2332"/>
@@ -34,7 +36,9 @@
       {{ end }}
     </div>
     <span class="htb-card-name">{{ $name }}</span>
-    <span class="htb-card-badge htb-diff-{{ $diffSlug }}">{{ upper $diff }}</span>
+    {{- /* Omit entirely when unset, rather than rendering an empty badge with
+         an unmatched htb-diff- class. */ -}}
+    {{- with $diff }}<span class="htb-card-badge htb-diff-{{ $diffSlug }}">{{ upper . }}</span>{{ end -}}
   </div>
 
   {{/* ── Date + OS row ── */}}
@@ -71,7 +75,7 @@
     <div class="htb-blood-right">
       {{ if $ubtime }}<div class="htb-blood-time">{{ $ubtime }}</div>{{ end }}
       <div class="htb-blood-who">
-        {{ if $ubimg }}<img src="{{ $ubimg }}" class="htb-who-avatar" alt="{{ $ublood }}">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
+        {{ if $ubimg }}<img src="{{ $ubimg }}" class="htb-who-avatar" alt="{{ $ublood }}" width="64" height="64" loading="lazy" decoding="async">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
         {{ if $ublood }}
           {{ if $uburl }}<a href="{{ $uburl }}" target="_blank" rel="noopener noreferrer" class="htb-who-link">{{ $ublood }}</a>{{ else }}<span>{{ $ublood }}</span>{{ end }}
         {{ else }}<span class="htb-unknown">—</span>{{ end }}
@@ -88,7 +92,7 @@
     <div class="htb-blood-right">
       {{ if $rbtime }}<div class="htb-blood-time">{{ $rbtime }}</div>{{ end }}
       <div class="htb-blood-who">
-        {{ if $rbimg }}<img src="{{ $rbimg }}" class="htb-who-avatar" alt="{{ $rblood }}">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
+        {{ if $rbimg }}<img src="{{ $rbimg }}" class="htb-who-avatar" alt="{{ $rblood }}" width="64" height="64" loading="lazy" decoding="async">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
         {{ if $rblood }}
           {{ if $rburl }}<a href="{{ $rburl }}" target="_blank" rel="noopener noreferrer" class="htb-who-link">{{ $rblood }}</a>{{ else }}<span>{{ $rblood }}</span>{{ end }}
         {{ else }}<span class="htb-unknown">—</span>{{ end }}
@@ -101,7 +105,7 @@
     <div class="htb-creator-label">CREATOR</div>
     <div class="htb-blood-right">
       <div class="htb-blood-who">
-        {{ if $creatorimg }}<img src="{{ $creatorimg }}" class="htb-who-avatar" alt="{{ $creator }}">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
+        {{ if $creatorimg }}<img src="{{ $creatorimg }}" class="htb-who-avatar" alt="{{ $creator }}" width="64" height="64" loading="lazy" decoding="async">{{ else }}<svg viewBox="0 0 24 24" fill="none" class="htb-who-icon" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ end }}
         {{ if $creator }}
           {{ if $creatorurl }}<a href="{{ $creatorurl }}" target="_blank" rel="noopener noreferrer" class="htb-who-link">{{ $creator }}</a>{{ else }}<span>{{ $creator }}</span>{{ end }}
         {{ else }}<span class="htb-unknown">—</span>{{ end }}

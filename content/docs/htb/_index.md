@@ -1,13 +1,10 @@
 ---
 title: "Hack The Box"
-weight: 1
+weight: 2
+icon: "terminal"
+description: "Full attack paths on retired Hack The Box machines: recon, foothold, privilege escalation and post-exploitation, with difficulty and OS on every card."
 ---
 
-Writeups for retired Hack The Box machines. Each post covers the full attack path: initial recon, foothold, privilege escalation, and any post-exploitation worth noting. Machines are retired at time of writing. Difficulty and key techniques are listed on each card.
+Writeups for retired Hack The Box machines. Each post covers the full attack path: initial recon, foothold, privilege escalation, and any post-exploitation worth noting. Machines are retired at time of writing. Difficulty is shown on each card.
 
-{{< cards >}}
-  {{< card link="/docs/htb/expressway" title="HTB - Expressway" icon="terminal" subtitle="Easy — Linux. IKE/IPSec PSK cracking, sudo 1.9.17 hostname bypass (CVE-2025-32462)." >}}
-  {{< card link="/docs/htb/remote" title="HTB - Remote" icon="terminal" subtitle="Easy — Windows. NFS enumeration, Umbraco RCE, TeamViewer CVE-2019-18988." >}}
-  {{< card link="/docs/htb/gavel" title="HTB - Gavel" icon="terminal" subtitle="Medium — Linux. .git disclosure, PDO SQLi null-byte bypass, runkit RCE, RULE_PATH privesc." >}}
-  {{< card link="/docs/htb/conversor" title="HTB - Conversor" icon="terminal" subtitle="Easy — Linux. os.path.join file write, cron execution, MD5 crack, needrestart CVE-2024-48990." >}}
-{{< /cards >}}
+{{< htb-machines >}}
