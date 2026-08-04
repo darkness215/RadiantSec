@@ -1,0 +1,99 @@
+{{- /* Per-page 1200x630 social card.
+
+   Returns an absolute URL for og:image / twitter:image. Draws page text onto
+   assets/images/og-base.png (which already carries the logo, wordmark, accent
+   bar and footer rule).
+
+   images.Text needs a TrueType/OpenType face — it cannot read the .woff2 files
+   in static/fonts/, which is why assets/fonts/Inter-Variable.ttf is vendored
+   separately.
+
+   NOTE: exactly one `return`, as the last statement. Hugo's partial-return
+   transformation does not accept an early return alongside a final one — two
+   returns produce "wrong number of args for return: want 0 got 1".
+
+   Falls back to site.Params.images when the base canvas or font is missing, so
+   a broken asset degrades to the old behaviour rather than an empty tag. */ -}}
+
+{{- $base := resources.Get "images/og-base.png" -}}
+{{- $font := resources.Get "fonts/Inter-Variable.ttf" -}}
+
+{{- $result := "" -}}
+{{- with site.Params.images -}}{{- $result = index . 0 | absURL -}}{{- end -}}
+
+{{- if and $base $font -}}
+
+  {{- /* ---- Text content ---- */ -}}
+  {{- $title := cond .IsHome site.Title .Title -}}
+  {{- $blurb := "" -}}
+  {{- with .Params.summary -}}
+    {{- $blurb = . -}}
+  {{- else -}}
+    {{- with .Description -}}{{- $blurb = . -}}{{- else -}}{{- $blurb = site.Params.description -}}{{- end -}}
+  {{- end -}}
+  {{- $blurb = $blurb | plainify -}}
+
+  {{- /* Footer: section, plus difficulty for HTB machines. */ -}}
+  {{- $meta := "" -}}
+  {{- if .IsHome -}}
+    {{- $meta = "Security research & writeups" -}}
+  {{- else -}}
+    {{- with .CurrentSection.LinkTitle -}}{{- $meta = . -}}{{- end -}}
+    {{- with $.Params.difficulty -}}{{- $meta = printf "%s · %s" $meta . -}}{{- end -}}
+  {{- end -}}
+
+  {{- /* ---- Wrapping ----
+       images.Text has no wrapping, so lines are split here on word boundaries.
+       Budgets are conservative: at 58px roughly 34 chars fit the 1010px
+       column, at 26px roughly 74. */ -}}
+  {{- $titleLines := slice -}}
+  {{- $line := "" -}}
+  {{- range (split $title " ") -}}
+    {{- $try := cond (eq $line "") . (printf "%s %s" $line .) -}}
+    {{- if le (len $try) 34 -}}
+      {{- $line = $try -}}
+    {{- else -}}
+      {{- if lt (len $titleLines) 2 -}}{{- $titleLines = $titleLines | append $line -}}{{- end -}}
+      {{- $line = . -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if and $line (lt (len $titleLines) 2) -}}{{- $titleLines = $titleLines | append $line -}}{{- end -}}
+
+  {{- $blurbLines := slice -}}
+  {{- $bline := "" -}}
+  {{- range (split $blurb " ") -}}
+    {{- $try := cond (eq $bline "") . (printf "%s %s" $bline .) -}}
+    {{- if le (len $try) 74 -}}
+      {{- $bline = $try -}}
+    {{- else -}}
+      {{- if lt (len $blurbLines) 3 -}}{{- $blurbLines = $blurbLines | append $bline -}}{{- end -}}
+      {{- $bline = . -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if and $bline (lt (len $blurbLines) 3) -}}{{- $blurbLines = $blurbLines | append $bline -}}{{- end -}}
+
+  {{- /* ---- Draw ---- */ -}}
+  {{- $filters := slice -}}
+  {{- range $i, $t := $titleLines -}}
+    {{- $filters = $filters | append (images.Text $t (dict
+        "x" 64 "y" (add 196 (mul $i 72))
+        "size" 58 "color" "#e6edf3" "font" $font "alignx" "left")) -}}
+  {{- end -}}
+  {{- $blurbTop := add (add 196 (mul (len $titleLines) 72)) 22 -}}
+  {{- range $i, $t := $blurbLines -}}
+    {{- $filters = $filters | append (images.Text $t (dict
+        "x" 64 "y" (add $blurbTop (mul $i 40))
+        "size" 26 "color" "#8b949e" "font" $font "alignx" "left")) -}}
+  {{- end -}}
+  {{- with $meta -}}
+    {{- $filters = $filters | append (images.Text . (dict
+        "x" 64 "y" 512 "size" 24 "color" "#e63946" "font" $font "alignx" "left")) -}}
+  {{- end -}}
+
+  {{- $out := $base -}}
+  {{- with $filters -}}{{- $out = $base | images.Filter . -}}{{- end -}}
+  {{- $result = $out.Permalink -}}
+
+{{- end -}}
+
+{{ return $result }}

@@ -1,0 +1,49 @@
+{{- /* PROJECT OVERRIDE of Hugo's embedded schema.html.
+
+   Like twitter_cards.html, this file existed in neither the theme nor the
+   project — themes/hextra/layouts/_partials/head.html:28 calls
+   `partial "schema.html"`, which fell through to Hugo's embedded template.
+
+   The bug it fixes: the embedded template builds itemprop="keywords" from the
+   *term pages'* titles. Several term stubs in content/tags/ set
+   `title: "Posts tagged X"` to break the <title> collision with same-named
+   content sections (see CLAUDE.md, "Tag Page Titles"), so 21 pages shipped
+
+     <meta itemprop="keywords" content="Posts tagged Kerberos,Active-Directory,
+                                        Posts tagged Kerberoasting,...">
+
+   .LinkTitle is the field that carries the human label and falls back to
+   .Title for the ~166 terms with no override — the same field layouts/term.html
+   and shortcodes/tag-cloud.html use. Keep all three in sync.
+
+   These microdata tags overlap the JSON-LD in custom/head-end.html. That
+   duplication is inherited, not introduced here; it is harmless, and removing
+   the tags is a separate decision from fixing the label. */ -}}
+
+{{- $desc := "" -}}
+{{- with .Description -}}
+  {{- $desc = . -}}
+{{- else -}}
+  {{- if .IsPage -}}{{- $desc = .Summary -}}{{- else -}}{{- $desc = site.Params.description -}}{{- end -}}
+{{- end -}}
+
+{{- with site.Params.images }}
+<meta itemprop="image" content="{{ index . 0 | absURL }}">
+{{- end }}
+{{- if .IsPage }}
+<meta itemprop="name" content="{{ .Title }}">
+<meta itemprop="description" content="{{ $desc | plainify | chomp }}">
+<meta itemprop="datePublished" content="{{ .PublishDate.Format "2006-01-02T15:04:05Z07:00" | safeHTML }}">
+<meta itemprop="dateModified" content="{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" | safeHTML }}">
+<meta itemprop="wordCount" content="{{ .WordCount }}">
+{{- with .GetTerms "tags" }}
+  {{- $keywords := slice }}
+  {{- range . }}
+    {{- $keywords = $keywords | append .LinkTitle }}
+  {{- end }}
+<meta itemprop="keywords" content="{{ delimit $keywords "," }}">
+{{- end }}
+{{- else }}
+<meta itemprop="name" content="{{ .Title }}">
+<meta itemprop="description" content="{{ $desc | plainify | chomp }}">
+{{- end }}

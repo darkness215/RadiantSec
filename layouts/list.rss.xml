@@ -1,0 +1,55 @@
+{{- /*
+  Project override of themes/hextra/layouts/list.rss.xml.
+
+  Only one thing changes from the theme copy: <description> carries .Summary
+  instead of the full .Content.
+
+  Why: the theme template inlines every article's rendered HTML into every feed
+  it appears in. With ~40 long-form articles that produced 49.5 MB of XML across
+  145 feeds — public/docs/index.xml alone was 5.1 MB, and single tag feeds ran to
+  4.2 MB. A feed is a notification channel, not a mirror of the site; readers
+  click through for the content. Summaries keep the whole feed surface under
+  ~200 KB.
+
+  Term and taxonomy feeds are switched off entirely in hugo.toml [outputs] —
+  those pages are noindex and nobody subscribes to a tag.
+
+  Kept deliberately: <atom:link rel="self">, the author/managingEditor block, and
+  the 50-item cap, all of which the theme sets and feed validators expect.
+*/ -}}
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>{{ .Site.Title }} – {{ .Title }}</title>
+    <link>{{ .Permalink }}</link>
+    <description>Recent content {{ if ne  .Title  .Site.Title }}{{ with .Title }}in {{.}} {{ end }}{{ end }}on {{ .Site.Title }}</description>
+    <generator>Hugo -- gohugo.io</generator>{{ with site.Language.Locale }}
+    <language>{{.}}</language>{{end}}{{ with .Site.Params.Author.email }}
+    <managingEditor>{{.}}{{ with $.Site.Params.Author.name }} ({{.}}){{end}}</managingEditor>{{end}}{{ with .Site.Params.Author.email }}
+    <webMaster>{{.}}{{ with $.Site.Params.Author.name }} ({{.}}){{end}}</webMaster>{{end}}{{ with .Site.Copyright }}
+    <copyright>{{.}}</copyright>{{end}}{{ if not .Date.IsZero }}
+    <lastBuildDate>{{ .Date.Format "Mon, 02 Jan 2006 15:04:05 -0700" | safeHTML }}</lastBuildDate>{{ end }}
+    {{ with .OutputFormats.Get "RSS" }}
+	  {{ printf "<atom:link href=%q rel=\"self\" type=%q />" .Permalink .MediaType | safeHTML }}
+    {{ end }}
+    {{ if not $.Section }}
+      {{ $sections := .Site.Params.rss.sections | default (slice "blog") }}
+      {{ .Store.Set "rssPages" (first 50 (where $.Site.RegularPages "Type" "in" $sections )) }}
+    {{ else }}
+      {{ if $.Parent.IsHome }}
+        {{ .Store.Set "rssPages" (first 50 (where $.Site.RegularPages "Type" $.Section )) }}
+      {{ else }}
+        {{ .Store.Set "rssPages" (first 50 $.Pages) }}
+      {{ end }}
+    {{ end }}
+    {{ range (.Store.Get "rssPages")  }}
+    <item>
+      <title>{{ .Title }}</title>
+      <link>{{ .Permalink }}</link>
+      <pubDate>{{ .Date.Format "Mon, 02 Jan 2006 15:04:05 -0700" | safeHTML }}</pubDate>
+      {{ with .Site.Params.Author.email }}<author>{{.}}{{ with $.Site.Params.Author.name }} ({{.}}){{end}}</author>{{end}}
+      <guid>{{ .Permalink }}</guid>
+      <description>{{ with .Params.description }}{{ . }}{{ else }}{{ .Summary | plainify }}{{ end }}</description>
+    </item>
+    {{ end }}
+  </channel>
+</rss>

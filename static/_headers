@@ -1,0 +1,60 @@
+# Cloudflare Pages reads this file from the build output root and applies the
+# rules as real response headers. (Hosting is Cloudflare Pages, not GitHub Pages
+# — confirmed from live response headers: `server: cloudflare`, no
+# `x-github-request-id`. GitHub Pages has no server-side header mechanism, which
+# is why this file would have been pointless there.)
+#
+# Rules are matched most-specific-first; `/*` is the site-wide default.
+
+/*
+  # Block MIME-type sniffing. Without it a browser may execute a mistyped
+  # response as script.
+  X-Content-Type-Options: nosniff
+
+  # Deny framing. The site has no embeddable widgets, so there is nothing to
+  # break, and this kills clickjacking outright.
+  X-Frame-Options: DENY
+
+  # Send the origin (not the full path) to third parties, and nothing at all
+  # when downgrading to HTTP. Outbound citations still attribute the referral.
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # No page here uses a camera, mic, geolocation, or payment API.
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()
+
+  # Two years, subdomains included, preload-eligible.
+  # NOTE: `preload` is a one-way door — submitting to the HSTS preload list is
+  # hard to reverse and applies to every subdomain. Leave the directive here but
+  # do not submit radiantsec.io to hstspreload.org until you are certain every
+  # current and future subdomain will serve HTTPS.
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+  # CSP. Kept deliberately tight because the built site loads nothing from an
+  # external host — verified: zero cdn/unpkg/fonts.googleapis references in any
+  # built page. Mermaid is bundled locally by the theme despite the jsdelivr
+  # `base` in hugo.toml, and fonts are self-hosted from /fonts/.
+  #
+  # 'unsafe-inline' on script-src is required: the theme emits inline bootstrap
+  # scripts (theme-toggle FOUC guard, search init) and the JSON-LD blocks in
+  # head-end.html. Removing it means hashing or noncing every inline block,
+  # which Hugo cannot do for theme-owned output without vendoring head.html.
+  # 'unsafe-inline' on style-src is required for the same reason (inline style
+  # attributes from Chroma and the theme).
+  #
+  # img-src is 'self' data: only. Every HTB avatar is now mirrored locally
+  # (static/images/htb/machines/ and static/images/htb/avatars/), so nothing
+  # is hotlinked. Do not loosen this back to https: without checking why:
+  # HTB moves its avatar CDN (the machine avatars have already moved from
+  # htb-mp-prod-public-storage.s3... to cdn.services-k8s.prod.aws.htb.systems),
+  # and a hotlinked image silently 404s when it does.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+
+# Fingerprinted assets are content-addressed, so they can be cached forever.
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable

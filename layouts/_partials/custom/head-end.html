@@ -1,6 +1,36 @@
 <meta name="author" content="{{ site.Params.author.name | default "darkness215" }}" />
+{{- /* Preload the latin subsets so first paint uses Inter / JetBrains Mono
+   instead of flashing the system fallback. Both are variable fonts, so these
+   two files cover every weight the site uses.
+
+   These live here, not in custom/head.html — the theme never calls that
+   partial (themes/hextra/layouts/_partials/head.html only calls
+   custom/head-end.html), so anything added there is silently dropped. */}}
+<link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin.woff2" crossorigin="anonymous">
+<link rel="preload" as="font" type="font/woff2" href="/fonts/jetbrains-mono-latin.woff2" crossorigin="anonymous">
+{{- /* Dev only: the theme links css/custom.css unfingerprinted in development and
+   Hugo's server sends no Cache-Control, so Chrome serves a stale copy after edits.
+   Re-link it with a content-hash query so it busts only when the file changes. */ -}}
+{{ if hugo.IsDevelopment }}
+  {{- with resources.Get "css/custom.css" | fingerprint }}
+<link href="{{ .RelPermalink }}" rel="stylesheet" />
+  {{- end }}
+{{ end }}
 {{ $js := resources.Get "js/site.js" | minify | fingerprint }}
 <script src="{{ $js.RelPermalink }}" integrity="{{ $js.Data.Integrity }}" crossorigin="anonymous" defer></script>
+
+{{- /* Structured data. Uses the dict -> jsonify -> safeJS pattern throughout:
+     safeHTML double-encodes inside a script context. */ -}}
+{{- $author := dict
+  "@type" "Person"
+  "name" (site.Params.author.name | default "darkness215")
+  "url" (printf "%sabout/" site.BaseURL)
+  "sameAs" (slice
+    "https://github.com/darkness215"
+    "https://app.hackthebox.com/users/2187012"
+    "https://www.linkedin.com/in/prathamesh-praghanmol/")
+-}}
+{{- $publisher := dict "@type" "Organization" "name" "Radiant Sec" "url" site.BaseURL -}}
 
 {{ if .IsPage }}
 {{ $jsonLD := dict
@@ -9,11 +39,44 @@
   "headline" .Title
   "datePublished" (.Date.Format "2006-01-02")
   "dateModified" (.Lastmod.Format "2006-01-02")
-  "author" (dict "@type" "Person" "name" (site.Params.author.name | default "darkness215"))
+  "author" $author
   "description" .Description
   "url" .Permalink
-  "publisher" (dict "@type" "Organization" "name" "Radiant Sec" "url" .Site.BaseURL)
+  "publisher" $publisher
   "mainEntityOfPage" (dict "@type" "WebPage" "@id" .Permalink)
 }}
 <script type="application/ld+json">{{ $jsonLD | jsonify | safeJS }}</script>
 {{ end }}
+
+{{- /* Breadcrumbs: makes the docs hierarchy eligible for SERP breadcrumb
+     display. .Ancestors is ordered deepest-first, so it is reversed to build
+     Home -> Section -> Page. Skipped on the homepage, which has no trail. */ -}}
+{{- if and .Ancestors (not .IsHome) -}}
+  {{- $items := slice -}}
+  {{- $pos := 1 -}}
+  {{- range (.Ancestors.Reverse) -}}
+    {{- $items = $items | append (dict "@type" "ListItem" "position" $pos "name" (cond .IsHome "Home" .LinkTitle) "item" .Permalink) -}}
+    {{- $pos = add $pos 1 -}}
+  {{- end -}}
+  {{- $items = $items | append (dict "@type" "ListItem" "position" $pos "name" .LinkTitle "item" .Permalink) -}}
+  {{- $crumbs := dict "@context" "https://schema.org" "@type" "BreadcrumbList" "itemListElement" $items -}}
+<script type="application/ld+json">{{ $crumbs | jsonify | safeJS }}</script>
+{{- end -}}
+
+{{- /* Homepage only: WebSite + SearchAction makes the site eligible for the
+     sitelinks search box. The target must point at a real results URL. */ -}}
+{{- if .IsHome -}}
+  {{- $site := dict
+    "@context" "https://schema.org"
+    "@type" "WebSite"
+    "name" site.Title
+    "url" site.BaseURL
+    "description" site.Params.description
+    "publisher" $publisher
+    "potentialAction" (dict
+      "@type" "SearchAction"
+      "target" (dict "@type" "EntryPoint" "urlTemplate" (printf "%s?query={search_term_string}" site.BaseURL))
+      "query-input" "required name=search_term_string")
+  -}}
+<script type="application/ld+json">{{ $site | jsonify | safeJS }}</script>
+{{- end -}}

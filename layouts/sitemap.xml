@@ -1,0 +1,28 @@
+{{ printf `<?xml version="1.0" encoding="utf-8" standalone="yes"?>` | safeHTML }}
+{{- /* Project override of Hugo's embedded sitemap template.
+
+   A sitemap must only list indexable URLs. Every tag page is noindex (set by
+   the cascade in content/tags/_index.md), and listing a noindex URL makes
+   Search Console report "Submitted URL marked noindex".
+
+   Filtered out:
+     - kind "term"        — the ~128 tag pages
+     - Params.noindex     — anything opted out individually
+     - redirect stubs     — Hugo's paginator aliases (blog/page/1) carry no
+                            content and only meta-refresh to the real page
+
+   Note: this deliberately keeps the /tags/ hub itself, which is a real page. */ -}}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  {{- range .Data.Pages }}
+    {{- if and (ne .Kind "term") (not .Params.noindex) }}
+      {{- if .Permalink }}
+  <url>
+    <loc>{{ .Permalink }}</loc>
+        {{- with .Lastmod }}
+    <lastmod>{{ .Format "2006-01-02T15:04:05-07:00" | safeHTML }}</lastmod>
+        {{- end }}
+  </url>
+      {{- end }}
+    {{- end }}
+  {{- end }}
+</urlset>

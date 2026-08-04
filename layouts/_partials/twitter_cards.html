@@ -1,0 +1,39 @@
+{{- /* PROJECT OVERRIDE of Hugo's embedded twitter_cards.html.
+
+   The embedded template resolves twitter:image from site.Params.images, which
+   pointed every page at the same 400x400 logo — the wrong aspect ratio for a
+   summary_large_image card. This uses the generated per-page card instead.
+
+   Neither the theme nor the project previously contained this file; the tags
+   came from Hugo's own embedded partial, which is why it was easy to miss.
+   (layouts/_partials/custom/head.html also declares twitter tags, but the
+   theme never calls that file, so it renders nothing.) */ -}}
+
+{{- $desc := "" -}}
+{{- with .Description -}}
+  {{- $desc = . -}}
+{{- else -}}
+  {{- if .IsPage -}}{{- $desc = .Summary -}}{{- else -}}{{- $desc = site.Params.description -}}{{- end -}}
+{{- end -}}
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ .Title }}">
+<meta name="twitter:description" content="{{ $desc | plainify | chomp | truncate 200 }}">
+{{- with $.Params.images -}}
+  {{- $image := index . 0 -}}
+  {{- with $.Resources.GetMatch $image }}
+<meta name="twitter:image" content="{{ .Permalink }}">
+  {{- else }}
+<meta name="twitter:image" content="{{ $image | absURL }}">
+  {{- end }}
+{{- else -}}
+  {{- with partial "custom/og-image.html" . }}
+<meta name="twitter:image" content="{{ . }}">
+<meta name="twitter:image:alt" content="{{ $.Title }} — Radiant Sec">
+  {{- end }}
+{{- end }}
+{{- /* Emitted only when configured — an empty handle is worse than none. */ -}}
+{{- with site.Params.social.twitter }}
+<meta name="twitter:site" content="@{{ . }}">
+<meta name="twitter:creator" content="@{{ . }}">
+{{- end }}
