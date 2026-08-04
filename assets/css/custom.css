@@ -1,6 +1,101 @@
+/* ============ Self-hosted fonts ============ */
+/* Both are variable fonts: one file per subset covers the whole weight range.
+   Files live in static/fonts/ — see static/fonts/README.md for why, and for
+   how to refresh them. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 /* Max page width */
 :root {
+  --rs-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --rs-font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  /* Tailwind v4 resolves the default stack through these; setting them is what
+     actually wins, a plain `body { font-family }` does not. */
+  --default-font-family: var(--rs-font-sans);
+  --default-mono-font-family: var(--rs-font-mono);
+  --font-sans: var(--rs-font-sans);
+  --font-mono: var(--rs-font-mono);
+
   --hextra-max-page-width: 90rem;
+  /* Hero backdrop grid lines */
+  --rs-grid-line: rgb(17 24 39 / 6%);
+  --rs-grid-size: 56px;
+}
+.dark {
+  --rs-grid-line: rgb(255 255 255 / 7%);
+}
+
+/* ============ Brand colour ============ */
+/* Hextra derives its whole --color-primary-50..900 ramp from these three vars
+   (themes/hextra/assets/css/styles.css). Its defaults are blue (212deg light,
+   204deg dark), which left every theme-coloured element — active sidebar links,
+   heading anchors, "Read more", pagination — rendering blue against the red
+   brand. #e63946 is hsl(355, 78%, 56%). */
+:root {
+  --primary-hue: 355deg;
+  --primary-saturation: 78%;
+  --primary-lightness: 56%;
+}
+.dark {
+  --primary-hue: 355deg;
+  --primary-saturation: 78%;
+  --primary-lightness: 62%; /* lifted for contrast on the dark surface */
+}
+
+/* Apply the stacks. Tailwind's utilities set font-family on elements directly,
+   so belt-and-braces: variables above plus explicit rules here. */
+html,
+body {
+  font-family: var(--rs-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+code,
+kbd,
+samp,
+pre,
+pre code,
+.hextra-code-block code,
+.tool-badge,
+.tag-chip,
+.stat-value,
+.hero-kbd,
+.htb-card,
+.post-verified,
+.path-nav-step,
+.browser-url {
+  font-family: var(--rs-font-mono);
 }
 
 /* Prevent horizontal overflow on mobile */
@@ -72,13 +167,15 @@
 }
 
 .dark .hextra-card:hover { border-color: #e63946 !important; }
-.dark :not(pre) > code { color: #e63946 !important; }
+.dark :not(pre) > code {
+  color: #e63946 !important;
+  background: rgba(230, 57, 70, 0.12);
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+}
 
-/* Dark scrollbar */
-.dark ::-webkit-scrollbar { width: 6px; }
-.dark ::-webkit-scrollbar-track { background: #1a1a1a; }
-.dark ::-webkit-scrollbar-thumb { background: #333333; border-radius: 3px; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #e63946; }
+/* Scrollbars are defined once for both themes in the Micro-polish block at the
+   end of this file. */
 
 /* ============ LIGHT MODE - Red accents only ============ */
 .hextra-sidebar a:hover,
@@ -91,17 +188,27 @@ aside a[aria-current] {
 }
 
 .hextra-card:hover { border-color: #e63946 !important; }
-:not(pre) > code { color: #e63946 !important; }
+:not(pre) > code {
+  color: #e63946 !important;
+  background: rgba(230, 57, 70, 0.08);
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+}
 
 .content h2 {
   border-left: 3px solid #e63946;
   padding-left: 0.6rem;
 }
 
-/* Navbar title styling */
-.nav-logo-title,
-a.navbar-brand,
-[class*="navbar"] span {
+/* Navbar brand ("Radiant Sec" beside the logo).
+   Scoped to the brand link only. The previous selector was
+   `[class*="navbar"] span`, which matched any element whose class merely
+   *contains* the string "navbar" — including Tailwind arbitrary values like
+   `hx:min-h-[calc(100vh-var(--navbar-height))]` on the article wrapper and
+   `hx:md:h-[calc(100vh-var(--navbar-height)...)]` on the sidebar. That bolded
+   and letter-spaced every <span> in the sidebar and page body site-wide, with
+   !important, and beat `.latest-post-title` on specificity. */
+nav.hextra-max-navbar-width > a > span {
   font-weight: 700 !important;
   letter-spacing: 0.05em !important;
 }
@@ -188,17 +295,20 @@ body:has(.hextra-home) .hextra-content {
   justify-content: center;
 }
 
-/* Hero tagline */
-.hero-tagline {
-  font-size: 0.9rem;
-  color: #6b7280;
-  max-width: 540px;
-  margin-left: auto;
-  margin-right: auto;
-  line-height: 1.65;
+/* About block: name, subtitle and certs line at the foot of the homepage */
+.about-name {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
-.dark .hero-tagline { color: #9ca3af; }
-
+.dark .about-name { color: #f3f4f6; }
+.about-subtitle {
+  font-size: 1rem;
+  color: #4b5563;
+  margin-top: 0.35rem;
+}
+.dark .about-subtitle { color: #d1d5db; }
 /* Footer */
 .hextra-custom-footer {
   display: flex !important;
@@ -278,6 +388,198 @@ body:has(.hextra-home) .hextra-content {
 .latest-post-date { font-size: 0.75rem; color: #9ca3af; }
 .dark .latest-post-date { color: #6b7280; }
 
+/* Title + description column inside a recent-post row */
+.latest-post-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  text-align: left;
+}
+.latest-post-desc {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #6b7280;
+}
+.dark .latest-post-desc { color: #9ca3af; }
+
+/* "Read more" link on the blog list */
+.blog-read-more {
+  color: #e63946 !important;
+  transition: opacity 0.15s ease;
+}
+.blog-read-more:hover { opacity: 0.75; }
+
+/* "View all posts" link under a homepage list */
+.view-all-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e63946 !important;
+  text-decoration: none !important;
+  transition: opacity 0.15s ease;
+}
+.view-all-link:hover { opacity: 0.75; }
+
+/* About social row */
+.about-social {
+  display: flex;
+  justify-content: center;
+  gap: 1.1rem;
+  margin-top: 1.5rem;
+}
+.about-social a {
+  display: inline-flex;
+  color: #9ca3af;
+  transition: color 0.15s ease;
+}
+.dark .about-social a { color: #6b7280; }
+.about-social a:hover { color: #e63946 !important; }
+
+/* Site stats strip */
+.site-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem 1rem;
+  margin: 2rem auto 0;
+}
+.stat-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.stat-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #e63946;
+}
+.stat-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+.dark .stat-label { color: #9ca3af; }
+.stat-dot { color: #d1d5db; }
+.dark .stat-dot { color: #374151; }
+
+/* Featured card */
+.featured-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #e63946;
+  border-radius: 10px;
+  background: #fbf8f8;
+  text-decoration: none !important;
+  color: inherit !important;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dark .featured-card {
+  background: #141d2b;
+  border-color: #1f2d3d;
+  border-left-color: #e63946;
+}
+.featured-card:hover {
+  border-color: #d1d5db;
+  border-left-color: #e63946;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 6%);
+}
+.dark .featured-card:hover {
+  border-color: #374151;
+  border-left-color: #e63946;
+  box-shadow: none;
+}
+.featured-card-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #e63946;
+}
+.featured-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
+}
+.featured-card-title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #111827;
+}
+.dark .featured-card-title { color: #e5e7eb; }
+.featured-card-subtitle {
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #6b7280;
+}
+.dark .featured-card-subtitle { color: #9ca3af; }
+.featured-card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.featured-card-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+.featured-card-cta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e63946;
+}
+
+/* Tag cloud */
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.25rem;
+  background: #f7f3f4;
+  color: #584c4e !important;
+  letter-spacing: 0.03em;
+  text-decoration: none !important;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.dark .tag-chip {
+  background: #261f21;
+  color: #a09193 !important;
+}
+.tag-chip:hover {
+  background: #e63946;
+  color: #fff !important;
+}
+.dark .tag-chip:hover {
+  background: #e63946;
+  color: #fff !important;
+}
+.tag-chip-count {
+  font-size: 0.65rem;
+  opacity: 0.65;
+}
+
 @media (max-width: 640px) {
   .latest-post-item,
   .related-post-item,
@@ -285,6 +587,30 @@ body:has(.hextra-home) .hextra-content {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.25rem;
+  }
+  .hero-ctas {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .home-hero {
+    padding: 2rem 0 2.25rem;
+  }
+  .hero-eyebrow {
+    font-size: 1.75rem;
+  }
+  :root { --rs-grid-size: 36px; }
+  .site-stats {
+    gap: 0.3rem 0.75rem;
+  }
+  .stat-dot { display: none; }
+  .featured-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .featured-card-meta {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
   }
 }
 
@@ -395,7 +721,6 @@ body:has(.hextra-home) .hextra-content {
 .hero-ctas {
   display: flex;
   gap: 0.75rem;
-  justify-content: center;
   flex-wrap: wrap;
 }
 
@@ -408,19 +733,107 @@ body:has(.hextra-home) .hextra-content {
   text-decoration: none !important;
   transition: opacity 0.15s ease;
 }
-.hero-btn:hover { opacity: 0.82 !important; color: inherit !important; }
+.hero-btn:hover { opacity: 0.82 !important; }
 
 .hero-btn-primary {
   background-color: #e63946;
   color: #fff !important;
   border: 1px solid #e63946;
 }
+.hero-btn-primary:hover { color: #fff !important; }
+/* Explicit colours, not `inherit`: the hero container sets a white text colour,
+   which made an inheriting secondary button invisible in light mode. */
 .hero-btn-secondary {
   background-color: transparent;
-  color: inherit !important;
+  color: #374151 !important;
   border: 1px solid #d1d5db;
 }
-.dark .hero-btn-secondary { border-color: #374151; }
+.hero-btn-secondary:hover { color: #374151 !important; }
+.dark .hero-btn-secondary {
+  border-color: #374151;
+  color: #e5e7eb !important;
+}
+.dark .hero-btn-secondary:hover { color: #e5e7eb !important; }
+
+/* ============ Homepage hero ============ */
+
+.home-hero {
+  position: relative;
+  isolation: isolate;
+  /* Same column as .home-section so the headline lines up with the section
+     labels below it. */
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 3.5rem 0 3rem;
+  text-align: left;
+}
+
+/* Faint grid, faded out radially so it never meets a hard edge. */
+.home-hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  /* Contained, not full-bleed. Both a 100vw layer and a fixed negative inset
+     overflowed the page horizontally (there is no clipping ancestor on the
+     hextra-home layout to catch them). The radial mask below fades the grid out
+     well inside the hero box, so containing it costs nothing visually. */
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--rs-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--rs-grid-line) 1px, transparent 1px);
+  background-size: var(--rs-grid-size) var(--rs-grid-size);
+  -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 30%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Keyboard hint inside the search CTA */
+.hero-kbd {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: #f7f3f4;
+  color: #756668;
+}
+.dark .hero-kbd {
+  background: #261f21;
+  color: #a09193;
+}
+
+/* Homepage section rhythm. The theme's hextra-home layout collapses markdown
+   `---` rules to zero width, so spacing and dividers live on these wrappers. */
+.home-section {
+  /* The hextra-home wrapper is a flex column, so children shrink to fit
+     unless stretched. Without this the topic grid collapses to one column. */
+  width: 100%;
+  align-self: stretch;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 3.25rem;
+  padding-top: 2.25rem;
+  border-top: 1px solid #e5e7eb;
+  text-align: left;
+}
+.dark .home-section { border-top-color: #262626; }
+
+/* The About block opts back out of the left alignment .home-section sets. */
+.home-about {
+  text-align: center;
+  padding-bottom: 1rem;
+}
+.home-about .site-stats {
+  margin-top: 1.5rem;
+}
+.home-about .view-all-link {
+  margin-top: 1.5rem;
+}
 
 /* Homepage section label */
 .home-section-label {
@@ -432,11 +845,20 @@ body:has(.hextra-home) .hextra-content {
   margin-bottom: 0.75rem;
 }
 
+/* Brand wordmark above the hero statement */
+.hero-eyebrow {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: #e63946;
+  margin-bottom: 0.5rem;
+}
+
 /* Verified date badge */
 .post-verified {
   font-size: 0.72rem;
   color: #6b7280;
-  font-family: ui-monospace, 'Cascadia Code', monospace;
   white-space: nowrap;
 }
 .dark .post-verified { color: #9ca3af; }
@@ -454,14 +876,13 @@ body:has(.hextra-home) .hextra-content {
   font-weight: 600;
   padding: 0.15rem 0.55rem;
   border-radius: 0.25rem;
-  background: #f1f5f9;
-  color: #475569;
+  background: #f7f3f4;
+  color: #584c4e;
   letter-spacing: 0.03em;
-  font-family: ui-monospace, 'Cascadia Code', monospace;
 }
 .dark .tool-badge {
-  background: #1e293b;
-  color: #94a3b8;
+  background: #261f21;
+  color: #a09193;
 }
 
 
@@ -472,18 +893,21 @@ body:has(.hextra-home) .hextra-content {
   gap: 0.3rem;
   font-size: 0.8rem;
 }
-.footer-rss-sep { color: #d1d5db; }
-.dark .footer-rss-sep { color: #374151; }
 
 /* ============ HTB Box Info Card ============ */
+/* Base = light mode. Dark values scoped under .dark. */
+
 .htb-card {
-  background: #141d2b;
+  background: #fbf8f8;
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 2rem;
-  font-family: ui-monospace, 'Cascadia Code', monospace;
-  border: 1px solid #1f2d3d;
+  border: 1px solid #e5e7eb;
   max-width: 740px;
+}
+.dark .htb-card {
+  background: #141d2b;
+  border-color: #1f2d3d;
 }
 
 /* Header */
@@ -492,8 +916,12 @@ body:has(.hextra-home) .hextra-content {
   align-items: center;
   gap: 14px;
   padding: 18px 20px;
+  background: #f7f3f4;
+  border-bottom: 1px solid #e5e7eb;
+}
+.dark .htb-card-header {
   background: #0d1520;
-  border-bottom: 1px solid #1f2d3d;
+  border-bottom-color: #1f2d3d;
 }
 .htb-card-avatar {
   width: 46px;
@@ -501,20 +929,22 @@ body:has(.hextra-home) .hextra-content {
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
-  background: #1a2332;
+  background: #eae3e4;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.dark .htb-card-avatar { background: #1a2332; }
 .htb-card-avatar img,
 .htb-card-avatar svg { width: 100%; height: 100%; object-fit: cover; }
 .htb-card-name {
   flex: 1;
   font-size: 1.35rem;
   font-weight: 700;
-  color: #fff;
+  color: #1a1416;
   letter-spacing: 0.01em;
 }
+.dark .htb-card-name { color: #fff; }
 .htb-card-badge {
   padding: 4px 14px;
   border-radius: 20px;
@@ -523,43 +953,55 @@ body:has(.hextra-home) .hextra-content {
   letter-spacing: 0.1em;
   border: 2px solid;
 }
-.htb-diff-easy   { color: #9fef00; border-color: #9fef00; }
-.htb-diff-medium { color: #ffaf00; border-color: #ffaf00; }
-.htb-diff-hard   { color: #ff6e6e; border-color: #ff6e6e; }
-.htb-diff-insane { color: #ff0000; border-color: #ff0000; }
+/* Difficulty badges: light mode darkens text for contrast, keeps HTB border color.
+   Dark mode restores the original vibrant HTB palette. */
+.htb-diff-easy   { color: #65a30d; border-color: #9fef00; background: rgba(159,239,0,0.08); }
+.htb-diff-medium { color: #b45309; border-color: #ffaf00; background: rgba(255,175,0,0.08); }
+.htb-diff-hard   { color: #dc2626; border-color: #ff6e6e; background: rgba(255,110,110,0.08); }
+.htb-diff-insane { color: #dc2626; border-color: #ff0000; background: rgba(255,0,0,0.08); }
+.dark .htb-diff-easy   { color: #9fef00; border-color: #9fef00; background: none; }
+.dark .htb-diff-medium { color: #ffaf00; border-color: #ffaf00; background: none; }
+.dark .htb-diff-hard   { color: #ff6e6e; border-color: #ff6e6e; background: none; }
+.dark .htb-diff-insane { color: #ff0000; border-color: #ff0000; background: none; }
 
 /* Stats row */
 .htb-card-stats {
   display: flex;
-  border-bottom: 1px solid #1f2d3d;
+  border-bottom: 1px solid #e5e7eb;
 }
+.dark .htb-card-stats { border-bottom-color: #1f2d3d; }
 .htb-card-stat {
   flex: 1;
   padding: 16px 20px;
-  border-right: 1px solid #1f2d3d;
+  border-right: 1px solid #e5e7eb;
 }
+.dark .htb-card-stat { border-right-color: #1f2d3d; }
 .htb-card-stat:last-child { border-right: none; }
 .htb-stat-right { text-align: right; }
 .htb-stat-label {
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: #4b6278;
+  color: #756668;
   margin-bottom: 6px;
 }
+.dark .htb-stat-label { color: #4b6278; }
 .htb-stat-val {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #c8d6e5;
+  color: #443a3b;
 }
-.htb-stat-green { color: #9fef00; }
+.dark .htb-stat-val { color: #c8d6e5; }
+.htb-stat-green { color: #15803d; }
+.dark .htb-stat-green { color: #9fef00; }
 .htb-stat-os {
   display: flex;
   align-items: center;
   gap: 7px;
   justify-content: flex-end;
 }
-.htb-os-icon { width: 18px; height: 18px; color: #c8d6e5; }
+.htb-os-icon { width: 18px; height: 18px; color: #443a3b; }
+.dark .htb-os-icon { color: #c8d6e5; }
 
 /* Blood rows */
 .htb-card-blood-row {
@@ -567,9 +1009,10 @@ body:has(.hextra-home) .hextra-content {
   align-items: center;
   gap: 16px;
   padding: 14px 20px;
-  border-bottom: 1px solid #1f2d3d;
+  border-bottom: 1px solid #e5e7eb;
   border-left: 3px solid #e63946;
 }
+.dark .htb-card-blood-row { border-bottom-color: #1f2d3d; }
 .htb-card-creator-row {
   display: flex;
   align-items: center;
@@ -590,6 +1033,11 @@ body:has(.hextra-home) .hextra-content {
   justify-content: center;
 }
 .htb-label-red {
+  background: #fef2f2;
+  color: #e63946;
+  border: 1px solid rgba(230,57,70,0.25);
+}
+.dark .htb-label-red {
   background: #2a0a0f;
   color: #e63946;
   border: 1px solid #e6394640;
@@ -598,13 +1046,18 @@ body:has(.hextra-home) .hextra-content {
 .htb-blood-time {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #9fef00;
+  color: #15803d;
   letter-spacing: 0.05em;
-  background: #0a150a;
-  border: 1px solid #9fef0030;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
   padding: 4px 14px;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
+}
+.dark .htb-blood-time {
+  color: #9fef00;
+  background: #0a150a;
+  border: 1px solid #9fef0030;
 }
 .htb-blood-right {
   display: flex;
@@ -616,40 +1069,102 @@ body:has(.hextra-home) .hextra-content {
   display: flex;
   align-items: center;
   gap: 5px;
-  background: #1a2332;
-  border: 1px solid #1f2d3d;
+  background: #f7f3f4;
+  border: 1px solid #e5e7eb;
   border-radius: 6px;
   padding: 4px 8px;
   min-width: 100px;
 }
-.htb-who-icon { width: 16px; height: 16px; color: #4b6278; flex-shrink: 0; }
+.dark .htb-blood-who {
+  background: #1a2332;
+  border: 1px solid #1f2d3d;
+}
+.htb-who-icon { width: 16px; height: 16px; color: #a09193; flex-shrink: 0; }
+.dark .htb-who-icon { color: #4b6278; }
 .htb-blood-who span {
-  color: #c8d6e5;
+  color: #443a3b;
   font-size: 0.72rem;
   font-weight: 600;
 }
+.dark .htb-blood-who span { color: #c8d6e5; }
 .htb-creator-label {
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: #8fafc4;
+  color: #756668;
   min-width: 80px;
 }
-.htb-unknown { color: #4b6278 !important; }
+.dark .htb-creator-label { color: #8fafc4; }
+/* #a09193 is only 3.0:1 on the light chip — fine for icons, short of AA for
+   text. This placeholder dash is text, so it uses the muted-text value. */
+.htb-unknown { color: #756668 !important; }
+.dark .htb-unknown { color: #4b6278 !important; }
 .htb-who-link {
-  color: #9fef00;
+  color: #15803d;
   text-decoration: none;
   font-weight: 600;
   font-size: 0.72rem;
 }
-.htb-who-link:hover { text-decoration: underline; color: #9fef00; }
+.dark .htb-who-link { color: #9fef00; }
+.htb-who-link:hover { text-decoration: underline; color: #15803d; }
+.dark .htb-who-link:hover { color: #9fef00; }
 .htb-who-avatar {
   width: 18px;
   height: 18px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid #2a3a4a;
+  border: 1px solid #d6cacb;
   flex-shrink: 0;
+}
+.dark .htb-who-avatar { border: 1px solid #2a3a4a; }
+
+/* HTB box-info card — mobile.
+   The card had no responsive rules at all. The stats row is a 3-column flex at
+   flex:1 with 20px side padding, leaving ~70px per column on a phone, so dates
+   wrapped one word per line. The blood rows pushed .htb-blood-right out with
+   margin-left:auto and never wrapped, so the avatar and username were clipped
+   off the right edge. Everything below is scoped to the media query; the
+   desktop layout is unchanged. */
+@media (max-width: 640px) {
+  .htb-card-stats {
+    flex-wrap: wrap;
+  }
+  .htb-card-stat {
+    flex: 1 1 50%;
+    min-width: 0; /* flex children refuse to shrink below content width without this */
+    padding: 12px 14px;
+  }
+  /* OS drops to its own full-width row, so its divider has to move from the
+     right edge to the top or it reads as a stray vertical rule. */
+  .htb-card-stat.htb-stat-right {
+    flex-basis: 100%;
+    text-align: left;
+    border-right: none;
+    border-top: 1px solid #e5e7eb;
+  }
+  .dark .htb-card-stat.htb-stat-right { border-top-color: #1f2d3d; }
+  .htb-stat-os { justify-content: flex-start; }
+  .htb-stat-val { font-size: 0.95rem; }
+  .htb-stat-label { font-size: 0.6rem; }
+
+  .htb-card-header { padding: 14px; gap: 10px; }
+  .htb-card-name { font-size: 1.15rem; }
+
+  .htb-card-blood-row,
+  .htb-card-creator-row {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  /* Drop the auto margin so the time + username wrap underneath the pill
+     instead of being pushed past the right edge. */
+  .htb-blood-right {
+    margin-left: 0;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .htb-blood-time { font-size: 0.95rem; padding: 3px 10px; }
+  .htb-blood-label { min-width: 0; }
 }
 
 /* HTB metadata table */
@@ -677,18 +1192,83 @@ body:has(.hextra-home) .hextra-content {
   background: #111;
 }
 
+/* ============ Code blocks — surface tuned per theme ============ */
+:root {
+  --rs-code-bg: #eceef2;
+  --rs-code-border: #d7dbe2;
+}
+.dark {
+  --rs-code-bg: #101215;
+  --rs-code-border: #262a31;
+}
+
+.hextra-code-block pre:not(.lntable pre) {
+  background: var(--rs-code-bg) !important;
+  border: 1px solid var(--rs-code-border);
+}
+
+/* linenos=table variant: the wrapper is the visible surface, cells stay clear */
+.hextra-code-block .chroma .lntable {
+  background: var(--rs-code-bg);
+  border: 1px solid var(--rs-code-border);
+}
+.hextra-code-block .chroma .lntable pre {
+  background: transparent !important;
+  border: 0;
+}
+
+/* Copy button reads against the light surface */
+.hextra-code-copy-btn {
+  background: var(--rs-code-bg) !important;
+  border-color: var(--rs-code-border) !important;
+}
+
 /* ============ Code blocks — inline line numbers (linenos=inline) ============ */
 
 /* Line number spans: muted, unselectable */
 .highlight .ln {
-  color: #75715e;
+  color: #9ca3af;
   padding-right: 0.875rem;
   margin-right: 0.25rem;
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+}
+.dark .highlight .ln {
+  color: #6e7681;
+  border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ============ Theme toggle button ============ */
+/* Larger square hit/hover area than Hextra's default h-7 w-7 icon button. */
+.hextra-theme-toggle {
+  width: 2.75rem !important;
+  height: 2.75rem !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem !important;
+}
+.hextra-theme-toggle svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.hextra-theme-toggle:hover { background: rgba(0, 0, 0, 0.06) !important; }
+.dark .hextra-theme-toggle:hover { background: rgba(255, 255, 255, 0.08) !important; }
+
+/* The toggle now lives in the navbar (hugo.toml menu item, type=theme-toggle).
+   Hide the footer and sidebar copies rather than setting
+   params.theme.displayToggle = false — that flag also removes the sidebar's
+   sticky container, which site.js uses to anchor the sidebar collapse button. */
+.hextra-footer > div:has(.hextra-theme-toggle),
+.hextra-footer > div:has(.hextra-theme-toggle) + hr {
+  display: none;
+}
+.hextra-sidebar-container [data-toggle-animation="show"] > div:has(.hextra-theme-toggle) {
+  display: none;
 }
 
 /* ============ Sidebar toggle button ============ */
@@ -718,8 +1298,10 @@ body:has(.hextra-home) .hextra-content {
     padding: 0 !important;
   }
   .hextra-sidebar-container.hx-collapsed {
-    width: 64px !important;
-    min-width: 64px !important;
+    /* 84px, not 64: wide enough to sit the 44px theme toggle and the 26px
+       sidebar toggle side by side in the bottom bar. */
+    width: 84px !important;
+    min-width: 84px !important;
   }
   .hextra-sidebar-container.hx-collapsed .hextra-theme-toggle span { display: none !important; }
   .hextra-sidebar-container.hx-collapsed [data-toggle-animation="show"] {
@@ -728,7 +1310,26 @@ body:has(.hextra-home) .hextra-content {
     padding-right: 0 !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    width: 64px !important;
+    width: 84px !important;
+    gap: 0.25rem !important;
+    /* Margins are zeroed above so the buttons fit, which would run the divider
+       edge to edge. Hide it and redraw it inset, matching the expanded bar. */
+    border-top-color: transparent !important;
+  }
+  .hextra-sidebar-container.hx-collapsed [data-toggle-animation="show"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 1rem;
+    right: 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+  .dark .hextra-sidebar-container.hx-collapsed [data-toggle-animation="show"]::before {
+    border-top-color: #262626;
+  }
+  .hextra-sidebar-container.hx-collapsed [data-toggle-animation="show"] > * {
+    align-items: center !important;
+    justify-content: center !important;
   }
   .hextra-sidebar-container.hx-collapsed .hx\:md\:hidden { display: none !important; }
 }
@@ -744,4 +1345,383 @@ body:has(.hextra-home) .hextra-content {
   z-index: 9999;
   pointer-events: none;
   transition: width 0.1s linear;
+}
+
+/* ============ Micro-polish ============ */
+
+/* Text selection in brand red */
+::selection {
+  background: rgb(230 57 70 / 22%);
+  color: inherit;
+}
+::-moz-selection {
+  background: rgb(230 57 70 / 22%);
+  color: inherit;
+}
+.dark ::selection {
+  background: rgb(230 57 70 / 35%);
+  color: inherit;
+}
+.dark ::-moz-selection {
+  background: rgb(230 57 70 / 35%);
+  color: inherit;
+}
+
+/* Keyboard focus ring. :focus-visible only, so mouse users never see it. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #e63946;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.hextra-card:focus-visible,
+.featured-card:focus-visible,
+.latest-post-item:focus-visible,
+.tag-chip:focus-visible {
+  outline-offset: 3px;
+}
+
+/* Thin themed scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d6cacb transparent;
+}
+.dark * {
+  scrollbar-color: #374151 transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6cacb;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a09193;
+  background-clip: content-box;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #374151;
+  background-clip: content-box;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+  background-clip: content-box;
+}
+
+/* Language chip on highlighted code blocks.
+   Chroma already emits data-lang on the <code> element, so no render hook is
+   needed — and plain ``` output blocks carry no data-lang, so they correctly
+   get no chip. Positioned against .hextra-code-block (hx:relative), and hidden
+   on hover so it never fights the copy button that occupies the same corner. */
+.hextra-code-block pre code[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  z-index: 1;
+  font-family: var(--rs-font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #756668; /* AA-legible; #a09193 is 3.0:1 on white, icon-only territory */
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.dark .hextra-code-block pre code[data-lang]::before {
+  color: #6b7280;
+}
+.hextra-code-block:hover pre code[data-lang]::before,
+.hextra-code-block:focus-within pre code[data-lang]::before {
+  opacity: 0;
+}
+
+/* ============ HTB machine filters ============ */
+/* Segmented controls: one bordered track per group, hairline-divided
+   segments, active segment filled. Buttons keep .htb-chip and their data
+   attributes, so the filter/sort JS in site.js is unaffected. */
+.htb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.1rem;
+  margin-top: 1.5rem;
+}
+.htb-filter-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* explicit: the group used to be a centred row */
+  gap: 0.3rem;
+}
+.htb-filter-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+}
+.dark .htb-filter-label { color: #6b7280; }
+
+/* Native <select>, restyled. `appearance: none` strips the OS control so the
+   closed state matches the site; the chevron is an inline SVG data URI so it
+   needs no extra markup or asset. The open option list is browser-drawn and
+   cannot be fully styled — accepted in exchange for free keyboard nav,
+   screen-reader semantics and the native mobile picker. */
+.htb-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font-family: var(--rs-font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #443a3b;
+  background-color: #fff;
+  border: 1px solid #eae3e4;
+  border-radius: 0.45rem;
+  padding: 0.36rem 1.8rem 0.36rem 0.7rem;
+  min-width: 8rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23756668' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 0.75rem;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.dark .htb-select {
+  color: #d6cacb;
+  background-color: #0f0f0f;
+  border-color: #262626;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a09193' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+}
+.htb-select:hover { border-color: #d6cacb; }
+.dark .htb-select:hover { border-color: #3f3f3f; }
+
+/* Note: an "applied filter" accent (brand-red border on a select whose value
+   isn't "all") was tried and removed. The rule matched the element and carried
+   !important, and the identical rule coloured a plain <div> correctly, but the
+   <select> kept the base border — some form-control style outranks it in a way
+   that resisted diagnosis. The selected value is already visible in the closed
+   control, so the accent was redundant. Don't re-add it without confirming it
+   actually paints. */
+
+/* The option list is drawn by the browser, not by us. These are the only hooks
+   any engine honours, and support is inconsistent: Chromium and Firefox on
+   Linux/Windows usually respect them, macOS Safari and every mobile picker
+   ignore them and use the OS selection colour (the blue highlight). There is
+   no CSS that fixes this everywhere — only a custom listbox would. */
+.htb-select option {
+  background: #fff;
+  color: #443a3b;
+}
+.dark .htb-select option {
+  background: #0f0f0f;
+  color: #d6cacb;
+}
+/* No option:checked/:hover recolouring here on purpose. Painting the selected
+   row red was tried and removed: Chromium applied it to :checked but not
+   :hover, so the open list showed a red selected row and a blue hovered row at
+   the same time — worse than leaving the native highlight alone. */
+
+.htb-count {
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin-top: 1rem;
+  font-family: var(--rs-font-mono);
+}
+.dark .htb-count { color: #9ca3af; }
+
+.htb-empty {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-top: 1.5rem;
+}
+.dark .htb-empty { color: #9ca3af; }
+
+/* display:contents keeps the <a> as the grid item, so the data-attribute
+   wrapper costs nothing in layout. [hidden] must override it explicitly. */
+.htb-machine { display: contents; }
+.htb-machine[hidden] { display: none; }
+
+/* ---------------------------------------------------------------------------
+   Reading-path navigation (layouts/_partials/custom/path-nav.html)
+
+   Replaces the stock pager on notes that carry `path` + `step` front matter.
+   Border/colour values mirror .related-posts directly above so the two blocks
+   read as one family at the foot of a note.
+
+   NOTE: .path-nav-step is monospace by way of the shared --rs-font-mono
+   selector list near the top of this file. Do not re-declare font-family here
+   — a later rule at equal specificity silently drops JetBrains Mono back to
+   the system stack, which has already happened to six components.
+   --------------------------------------------------------------------------- */
+.path-nav {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+.dark .path-nav { border-top-color: #262626; }
+
+.path-nav-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.path-nav-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  text-decoration: none !important;
+}
+.path-nav-label:hover { color: #e63946; }
+.dark .path-nav-label { color: #9ca3af; }
+.path-nav-step {
+  font-size: 0.72rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+.dark .path-nav-step { color: #9ca3af; }
+
+.path-nav-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.path-nav-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  text-decoration: none !important;
+  color: inherit !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.dark .path-nav-link { border-color: #262626; }
+.path-nav-link:hover { border-color: #e63946; }
+.path-nav-next { text-align: right; }
+.path-nav-dir {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+.dark .path-nav-dir { color: #9ca3af; }
+.path-nav-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+/* Placeholder keeps "Next" in the right-hand column on step 1. */
+.path-nav-empty { border: none; pointer-events: none; }
+
+@media (max-width: 640px) {
+  .path-nav-links { grid-template-columns: 1fr; }
+  .path-nav-next { text-align: left; }
+  .path-nav-empty { display: none; }
+}
+
+/* ============ Browser frame ============ */
+/* Chrome around a screenshot showing the URL it came from, so a reader can see
+   which page is pictured without a caption sentence. Rendered by
+   layouts/shortcodes/browser.html.
+
+   .browser-url gets its monospace stack from the shared selector list near the
+   top of this file. Do NOT re-declare font-family here: a later rule at equal
+   specificity wins and silently drops JetBrains Mono (see CLAUDE.md). */
+:root {
+  --rs-browser-bg: #eceef2;
+  --rs-browser-border: #d7dbe2;
+  --rs-browser-url-bg: #fff;
+  --rs-browser-url-fg: #4b5563;
+}
+.dark {
+  --rs-browser-bg: #16181c;
+  --rs-browser-border: #262a31;
+  --rs-browser-url-bg: #0b0d10;
+  --rs-browser-url-fg: #9aa4b2;
+}
+
+.browser-frame {
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border: 1px solid var(--rs-browser-border);
+  border-radius: 8px;
+}
+.browser-frame-bar {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--rs-browser-bg);
+  border-bottom: 1px solid var(--rs-browser-border);
+}
+.browser-dots {
+  display: flex;
+  flex: none;
+  gap: 0.3125rem;
+}
+.browser-dots i {
+  display: block;
+  width: 0.6875rem;
+  height: 0.6875rem;
+  border-radius: 50%;
+}
+.browser-dots i:nth-child(1) { background: #ec6a5e; }
+.browser-dots i:nth-child(2) { background: #f4bf50; }
+.browser-dots i:nth-child(3) { background: #61c454; }
+/* min-width:0 lets the pill shrink below its content so ellipsis can engage. */
+.browser-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.25rem 0.625rem;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--rs-browser-url-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--rs-browser-url-bg);
+  border: 1px solid var(--rs-browser-border);
+  border-radius: 999px;
+}
+.browser-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.browser-frame figcaption {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--rs-browser-url-fg);
+  background: var(--rs-browser-bg);
+  border-top: 1px solid var(--rs-browser-border);
+}
+
+/* ============ Docs page tail spacing ============ */
+/* The stock pager ships `hx:mb-8` and the article wrapper adds `hx:pb-8`, so
+   ~4rem of dead space stacked up before the footer. That was invisible while
+   the "Related Notes" block sat above it; once that was removed (see
+   layouts/docs/single.html) the gap read as a layout bug. Zeroing the last
+   child's bottom margin leaves the article's own 2rem, which is enough. */
+#content > :last-child {
+  margin-bottom: 0;
 }

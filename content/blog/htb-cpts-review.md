@@ -1,7 +1,8 @@
 ---
-title: "How I Passed HTB CPTS: Preparation, Exam Strategy, and Lessons Learned"
-date: 2026-03-06
-description: "A full breakdown of how I prepared for and passed the Hack The Box Certified Penetration Testing Specialist exam: study timeline, tools, report writing, and everything I wish I knew before starting."
+title: "HTB CPTS Review: How I Passed First Try"
+heading: "How I Passed HTB CPTS: Preparation, Exam Strategy, and Lessons Learned"
+date: 2026-03-07
+description: "A full breakdown of how I prepared for and passed the HTB Certified Penetration Testing Specialist exam: study timeline, tools, and report writing."
 tags: ["CPTS", "HTB", "Certification", "Penetration Testing", "Active Directory"]
 ---
 

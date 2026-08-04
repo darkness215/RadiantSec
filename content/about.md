@@ -1,7 +1,7 @@
 ---
 title: "About"
 date: 2026-03-06
-description: "About darkness215 and Radiant Sec"
+description: "darkness215: CPTS and OSEP certified, focused on Windows internals, Active Directory and AV/EDR evasion. Currently pursuing HTB CAPE and bug bounty."
 layout: "page"
 ---
 
@@ -29,6 +29,7 @@ This site is my public notebook, a place to document what I learn as I break thi
 | [AppLocker](/docs/applocker) | 9-post series covering every bypass technique and blue team detection |
 | [Red Team](/docs/redteam) | EDR/AV evasion, offensive tooling, and constrained environment techniques |
 | [Blue Team](/docs/blueteam) | Threat hunting and detection written from the attacker's perspective |
+| [Tools](/docs/tools) | Offensive tooling guides: setup, pivoting, and advanced tradecraft |
 | [Blog](/blog) | Certification reviews and longer-form writeups |
 
 ## Contact

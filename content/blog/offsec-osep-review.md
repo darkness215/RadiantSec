@@ -1,7 +1,8 @@
 ---
-title: "How I Passed OffSec OSEP: PEN-300, AV Evasion, and Exam Strategy"
-date: 2026-03-06
-description: "A full breakdown of how I prepared for and passed the OffSec Experienced Penetration Tester exam: PEN-300 course, custom payloads, Sliver C2, exam experience, and everything I wish I knew before starting."
+title: "OffSec OSEP Review: How I Passed PEN-300"
+heading: "How I Passed OffSec OSEP: PEN-300, AV Evasion, and Exam Strategy"
+date: 2026-03-07
+description: "A full breakdown of how I prepared for and passed the OffSec Experienced Penetration Tester exam: PEN-300, custom payloads, Sliver C2, and exam strategy."
 tags: ["OSEP", "OffSec", "Certification", "AV Evasion", "Active Directory", "C2"]
 ---
 
@@ -23,13 +24,13 @@ By the time I started OSEP I had a solid foundation in Active Directory attacks,
 
 ## How I Prepared
 
-### PEN-300 — The Course Material
+### PEN-300: The Course Material
 
 The PEN-300 course is a significant step up from anything at the OSCP or CPTS level. It covers process injection, custom shellcode runners, AV/EDR evasion, advanced lateral movement techniques, and operating through a C2 framework, among other things. I spent **2 months** working through the material thoroughly, then dedicated a full **third month exclusively to the challenge labs**.
 
 Do not rush through PEN-300. The course is dense and the techniques build on each other. If you skip or skim sections you will feel it in the challenge labs and in the exam. Take notes on every technique, every code snippet, and every concept as you go.
 
-### Challenge Labs — The Most Important Part of Prep
+### Challenge Labs: The Most Important Part of Prep
 
 After completing the course material, the **PEN-300 challenge labs** are where real preparation happens. There are **8 challenge lab environments** in total, and the last two, **Challenge Lab 7 and 8, are previous OSEP exams**. They are the closest simulation of the actual exam you will get. These are designed to simulate exactly the kind of chained, multi-machine, evasion-heavy environment you will face on exam day.
 

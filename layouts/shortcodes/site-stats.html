@@ -1,0 +1,33 @@
+{{- /* Every figure is computed at build time so the strip can never go stale. */ -}}
+{{- $total := 0 -}}
+{{- with site.GetPage "/blog" -}}
+  {{- $total = add $total (len .RegularPagesRecursive) -}}
+{{- end -}}
+{{- with site.GetPage "/docs" -}}
+  {{- range .Sections -}}
+    {{- $total = add $total (len .RegularPagesRecursive) -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $stats := slice (dict "value" $total "label" "Pages") -}}
+{{- $tracked := slice
+  (dict "path" "/docs/htb"       "label" "HTB Machines")
+  (dict "path" "/docs/applocker" "label" "AppLocker Bypasses")
+  (dict "path" "/docs/kerberos"  "label" "Kerberos Attacks")
+-}}
+{{- range $tracked -}}
+  {{- $label := .label -}}
+  {{- with site.GetPage .path -}}
+    {{- $stats = $stats | append (dict "value" (len .RegularPagesRecursive) "label" $label) -}}
+  {{- end -}}
+{{- end -}}
+
+<div class="site-stats">
+  {{- range $i, $s := $stats -}}
+    {{- if $i }}<span class="stat-dot">·</span>{{ end }}
+    <span class="stat-item">
+      <span class="stat-value">{{ $s.value }}</span>
+      <span class="stat-label">{{ $s.label }}</span>
+    </span>
+  {{- end -}}
+</div>

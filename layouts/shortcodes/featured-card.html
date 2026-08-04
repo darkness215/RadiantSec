@@ -1,0 +1,25 @@
+{{- $link     := .Get "link" -}}
+{{- $title    := .Get "title" -}}
+{{- $subtitle := .Get "subtitle" -}}
+{{- $cta      := .Get "cta" | default "Read the reference" -}}
+{{- $icon     := .Get "icon" | default "key" -}}
+
+{{- /* Page count comes from the linked section itself, so it stays accurate. */ -}}
+{{- $count := 0 -}}
+{{- with site.GetPage $link -}}
+  {{- $count = len .RegularPagesRecursive -}}
+  {{- if not $title }}{{ $title = .Title }}{{ end -}}
+  {{- if not $subtitle }}{{ $subtitle = .Description }}{{ end -}}
+{{- end -}}
+
+<a href="{{ $link }}" class="featured-card">
+  <span class="featured-card-icon">{{ partial "utils/icon.html" (dict "name" $icon "attributes" "height=\"20\" width=\"20\"") }}</span>
+  <span class="featured-card-body">
+    <span class="featured-card-title">{{ $title }}</span>
+    <span class="featured-card-subtitle">{{ $subtitle }}</span>
+  </span>
+  <span class="featured-card-meta">
+    {{- if $count }}<span class="featured-card-count">{{ $count }} pages</span>{{ end }}
+    <span class="featured-card-cta">{{ $cta }} &rarr;</span>
+  </span>
+</a>

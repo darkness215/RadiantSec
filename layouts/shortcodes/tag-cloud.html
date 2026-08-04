@@ -1,0 +1,14 @@
+{{- $limit := .Get "limit" | default 8 | int -}}
+
+<div class="tag-cloud">
+  {{- range first $limit site.Taxonomies.tags.ByCount -}}
+    {{- /* Let Hugo resolve the term URL rather than hand-building /tags/<slug>. */ -}}
+    {{- /* LinkTitle, not Title: term stubs set title "Posts tagged X" to fix the
+           <title> collision with same-named content sections, and that string
+           must not leak into the chip label. Falls back to Title when unset. */ -}}
+    <a href="{{ .Page.RelPermalink }}" class="tag-chip">
+      <span class="tag-chip-name">{{ .Page.LinkTitle }}</span>
+      <span class="tag-chip-count">{{ .Count }}</span>
+    </a>
+  {{- end -}}
+</div>

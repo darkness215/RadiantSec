@@ -5,7 +5,12 @@
     <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]">
       <main id="content" class="hx:w-full hx:min-w-0 hextra-max-content-width hx:px-6 hx:pt-4 hx:md:px-12">
         <h1 class="hx:mt-2 hx:text-3xl hx:font-bold hx:tracking-tight">
-          <span style="color: #e63946;">#</span> {{ .Title }}
+          {{- /* LinkTitle, not Title: a few term pages override `title` to
+               disambiguate their <title> tag from a same-named content page
+               (e.g. /tags/kerberos/ vs /docs/kerberos/). LinkTitle keeps the
+               heading showing the bare term, and falls back to Title for the
+               terms that have no override. */ -}}
+          <span style="color: #e63946;">#</span> {{ .LinkTitle }}
         </h1>
         <p class="tag-post-count">{{ len .Pages }} {{ if eq (len .Pages) 1 }}post{{ else }}posts{{ end }}</p>
         <div class="tag-posts-list">

@@ -1,23 +1,35 @@
-{{- $sections := slice "/blog" "/docs/htb" "/docs/redteam" "/docs/blueteam" "/docs/applocker" -}}
-{{- $iconMap  := dict "/blog" "pencil-alt" "/docs/htb" "terminal" "/docs/redteam" "shield-exclamation" "/docs/blueteam" "shield-check" "/docs/applocker" "lock-closed" -}}
-{{- $pages := slice -}}
-{{- range $sections -}}
-  {{- $sec := site.GetPage . -}}
-  {{- if $sec -}}
-    {{- range $sec.RegularPages -}}
-      {{- $pages = $pages | append . -}}
-    {{- end -}}
+{{- /* Collect /blog plus every child section of /docs, so new sections register
+       automatically instead of needing to be added to a hardcoded list. */ -}}
+{{- $sections := slice -}}
+{{- with site.GetPage "/blog" -}}
+  {{- $sections = $sections | append . -}}
+{{- end -}}
+{{- with site.GetPage "/docs" -}}
+  {{- range .Sections -}}
+    {{- $sections = $sections | append . -}}
   {{- end -}}
 {{- end -}}
-{{- $pages = sort $pages "Date" "desc" -}}
-{{- $latest := first 3 $pages -}}
+
+{{- $pages := slice -}}
+{{- range $sections -}}
+  {{- range .RegularPagesRecursive -}}
+    {{- $pages = $pages | append . -}}
+  {{- end -}}
+{{- end -}}
+{{- $latest := first 3 (sort $pages "Date" "desc") -}}
 
 <div class="latest-posts">
   {{- range $latest -}}
-  {{- $secPath := strings.TrimSuffix "/" .CurrentSection.RelPermalink -}}
-  {{- $iconName := index $iconMap $secPath | default "document" -}}
+  {{- /* Each section declares its own icon in _index.md front matter. */ -}}
+  {{- $iconName := .CurrentSection.Params.icon | default "document" -}}
+  {{- $desc := .Description | default .Summary -}}
   <a href="{{ .RelPermalink }}" class="latest-post-item">
-    <span class="latest-post-title">{{ .Title }}</span>
+    <span class="latest-post-main">
+      <span class="latest-post-title">{{ .Title }}</span>
+      {{- with $desc }}
+      <span class="latest-post-desc">{{ . | plainify | truncate 110 }}</span>
+      {{- end }}
+    </span>
     <span class="latest-post-meta">
       <span class="latest-post-icon">{{ partial "utils/icon.html" (dict "name" $iconName "attributes" "height=\"13\" width=\"13\"") }}</span>
       <span class="latest-post-section">{{ .CurrentSection.Title }}</span>
@@ -27,3 +39,7 @@
   </a>
   {{- end -}}
 </div>
+
+{{- /* Label matches the destination: this list aggregates blog + docs, but the
+     link goes to /docs, so it does not promise "all posts". */ -}}
+<a href="/docs" class="view-all-link">Browse all docs &rarr;</a>

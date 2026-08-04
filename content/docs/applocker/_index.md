@@ -1,11 +1,29 @@
 ---
 title: "AppLocker"
-weight: 4
+date: 2026-05-12
+weight: 5
+icon: "lock-closed"
+description: "Every AppLocker bypass technique from a red team perspective, paired with the telemetry each one generates and the hardening that closes the gap."
 ---
 
 AppLocker is Microsoft's application whitelisting solution, built into Windows and widely deployed across enterprise environments. When misconfigured, or relying entirely on default rules, it becomes an attack surface rather than a control.
 
 This series covers AppLocker bypass techniques from a red team perspective alongside the detection and hardening guidance a blue teamer needs to close each gap. Each post documents a specific bypass, explains why it works at a technical level, and covers the telemetry it generates and how to detect or prevent it.
+
+Every technique here defeats one of four assumptions AppLocker makes. The map below groups the bypasses by the assumption they break:
+
+```mermaid
+graph LR
+    A["A signed / trusted binary\nis safe to run"] --> A1["Regasm & Regsvcs"]
+    A --> A2["Regsvr32 (Squiblydoo)"]
+    A --> A3["Reflective Assembly Load"]
+    A --> A4["BgInfo VBScript"]
+    B["Only certain file types\nneed evaluating"] --> B1["File Extension Blind Spots"]
+    C["A trusted path\nimplies a trusted writer"] --> C1["Trusted Folder Abuse"]
+    C --> C2["DLL Hijacking & Side-Loading"]
+    D["Checking a process at launch\nis enough"] --> D1["Process Injection"]
+    D --> D2["UAC Bypass (auto-elevate)"]
+```
 
 {{< cards >}}
   {{< card link="/docs/applocker/bypass-regasm-regsvcs" title="Regasm and Regsvcs" icon="shield-exclamation" subtitle="Abusing trusted .NET COM registration utilities to execute arbitrary code." >}}

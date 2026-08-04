@@ -1,13 +1,17 @@
 ---
-title: "Hunting for LOLBins in Windows Event Logs: certutil & bitsadmin"
-date: 2026-03-06
+title: "Hunting LOLBins in Windows Event Logs"
+heading: "Hunting for LOLBins in Windows Event Logs: certutil & bitsadmin"
+date: 2026-06-26
+reading_path: "evasion"
+step: 4
 description: "A practical intermediate guide to detecting LOLBin abuse using certutil.exe and bitsadmin.exe through native Windows Event Logs and Sysmon."
+verified: "Windows 10/11 + Sysmon · Jun 2026"
 tags: ["blueteam", "threat-hunting", "lolbins", "windows", "event-logs", "sysmon", "detection"]
 ---
 
 ## Introduction
 
-Living-off-the-Land Binaries, commonly called **LOLBins**, are legitimate Windows executables that attackers abuse to perform malicious actions while blending in with normal system activity. Because these binaries are signed by Microsoft and present on every Windows installation, they are a favourite tool for red teamers, APT groups, and commodity malware alike.
+Living-off-the-Land Binaries, commonly called **LOLBins**, are legitimate Windows executables that attackers abuse to perform malicious actions while blending in with normal system activity. Because these binaries are signed by Microsoft and present on every Windows installation, they are a favourite tool for [red teamers](/docs/redteam/), APT groups, and commodity malware alike.
 
 This post focuses on two of the most abused LOLBins in the wild:
 
@@ -31,7 +35,7 @@ Traditional antivirus and endpoint tools detect known malicious files: custom ma
 - Expected to appear in normal process telemetry
 - Whitelisted by many security products by default
 
-This technique is referred to as **"living off the land"**: the attacker brings nothing new to the system, making detection significantly harder. According to the LOLBAS project, there are over 150 documented Windows binaries that can be abused this way.
+This technique is referred to as **"living off the land"**: the attacker brings nothing new to the system, making detection significantly harder. According to the LOLBAS project, there are over 150 documented Windows binaries that can be abused this way, from [regsvr32 scriptlet execution](/docs/applocker/bypass-regsvr32/) to [trusted-folder abuse](/docs/applocker/bypass-trusted-folders/).
 
 {{< callout type="warning" >}}
 The commands shown in this post are for **educational and detection purposes only**. Do not run these against systems you do not own or have explicit written permission to test.
@@ -39,7 +43,7 @@ The commands shown in this post are for **educational and detection purposes onl
 
 ---
 
-## Prerequisites — Audit Policy and Sysmon Setup
+## Prerequisites: Audit Policy and Sysmon Setup
 
 ### Windows Audit Policy
 
@@ -106,7 +110,7 @@ Screenshot pending — will be added with the next lab run.
 C:\Windows\System32\certutil.exe
 ```
 
-### How Attackers Abuse It
+### How Do Attackers Abuse It?
 
 **1. File Download — acting as wget**
 
@@ -136,7 +140,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-### Hunting certutil — Windows Event Logs
+### Hunting certutil: Windows Event Logs
 
 **Event ID 4688 — Process Creation**
 
@@ -168,7 +172,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-### Hunting certutil — Sysmon
+### Hunting certutil: Sysmon
 
 Sysmon gives you three additional data points that native logs miss entirely.
 
@@ -231,7 +235,7 @@ Screenshot pending — will be added with the next lab run.
 C:\Windows\System32\bitsadmin.exe
 ```
 
-### How Attackers Abuse It
+### How Do Attackers Abuse It?
 
 BITS jobs are particularly dangerous because:
 
@@ -263,7 +267,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-### Hunting bitsadmin — Windows Event Logs
+### Hunting bitsadmin: Windows Event Logs
 
 **Event ID 4688 — Process Creation**
 
@@ -312,7 +316,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-### Hunting bitsadmin — Sysmon
+### Hunting bitsadmin: Sysmon
 
 **Sysmon Event ID 1 — Process Creation**
 
@@ -378,34 +382,15 @@ Any job you cannot attribute to Windows Update, WSUS, or a known application is 
 
 Use this as a repeatable checklist during investigations or proactive hunts:
 
-``` {linenos=inline}
-1. Verify audit policy — confirm 4688 command line logging is enabled
-   └── auditpol /get /category:"Detailed Tracking"
-
-2. Hunt certutil in Security log (Event 4688)
-   └── Filter: certutil + urlcache|decode|encode
-
-3. Hunt certutil in Sysmon (Event 1, 3, 11)
-   └── Event 1: command line + parent process
-   └── Event 3: outbound network connections
-   └── Event 11: files written to staging directories
-
-4. Hunt bitsadmin in Security log (Event 4688)
-   └── Filter: bitsadmin + transfer|SetNotifyCmdLine
-
-5. Hunt bitsadmin in BITS-Client log (Event 59, 60, 3, 4)
-   └── Look for external URLs and suspicious job names
-
-6. Hunt bitsadmin in Sysmon (Event 1, 3, 22)
-   └── Event 1: parent process — should be svchost not cmd/powershell
-   └── Event 3: outbound connections to non-Microsoft IPs
-   └── Event 22: DNS queries from bitsadmin process
-
-7. Enumerate active BITS jobs
-   └── bitsadmin /list /allusers /verbose
-
-8. Check staging directories for recently created files
-   └── C:\Users\Public\, C:\Windows\Temp\, C:\Users\*\AppData\
+```mermaid
+flowchart TD
+    A["1. Verify audit policy\n4688 command-line logging enabled"] --> B["2. Hunt certutil in Security log (4688)\nfilter: urlcache / decode / encode"]
+    B --> C["3. Hunt certutil in Sysmon\nEvent 1 command line + parent, 3 network, 11 file writes"]
+    C --> D["4. Hunt bitsadmin in Security log (4688)\nfilter: transfer / SetNotifyCmdLine"]
+    D --> E["5. Hunt bitsadmin in BITS-Client log (59, 60, 3, 4)\nexternal URLs, suspicious job names"]
+    E --> F["6. Hunt bitsadmin in Sysmon\nEvent 1 parent should be svchost, 3 network, 22 DNS"]
+    F --> G["7. Enumerate active BITS jobs\nbitsadmin /list /allusers /verbose"]
+    G --> H["8. Check staging dirs for recent files\nUsers/Public, Windows/Temp, Users/*/AppData"]
 ```
 
 {{< callout type="info" >}}

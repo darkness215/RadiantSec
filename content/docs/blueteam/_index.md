@@ -1,6 +1,9 @@
 ---
 title: "Blue Team"
-weight: 3
+date: 2026-06-23
+weight: 4
+icon: "shield-check"
+description: "Threat hunting and detection written from the attacker's perspective, mapping each attack to concrete event IDs, Sysmon fields and log sources."
 ---
 
 Detection and threat hunting written from the attacker's perspective. Each post breaks down how a specific attack works, then maps it to detectable artifacts: event IDs, Sysmon fields, and log sources. Understanding the offense is how you build better defense.

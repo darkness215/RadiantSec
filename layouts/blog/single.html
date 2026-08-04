@@ -4,7 +4,9 @@
       <main id="content" class="hx:w-full hx:min-w-0 hextra-max-content-width hx:px-6 hx:pt-4 hx:md:px-12">
         <div class="content">
           {{ if .Title }}
-          <h1>{{ .Title }}</h1>
+          {{- /* See docs/single.html: `heading` keeps the long on-page headline,
+               `title` stays short for the SERP snippet. */ -}}
+          <h1>{{ .Params.heading | default .Title }}</h1>
           {{ end }}
           <div class="post-meta">
             {{- if .Params.tags -}}

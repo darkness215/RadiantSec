@@ -1,11 +1,39 @@
 ---
 title: "AppLocker Bypass: Process Injection"
-date: 2026-03-06
-description: "Process injection techniques for AppLocker-constrained environments — DLL injection, PE injection, APC injection, and process hollowing — with C# implementations and Sysmon-based detection."
+date: 2026-06-05
+weight: 8
+reading_path: "applocker"
+step: 8
+description: "Process injection for AppLocker-constrained environments: DLL injection, PE injection, APC injection, and process hollowing, with C# implementations."
+verified: "Windows 10/11 Enterprise · Jun 2026"
 tags: ["applocker", "bypass", "process-injection", "process-hollowing", "apc", "evasion", "windows", "blueteam"]
 ---
 
 > **Scope:** Red team / authorized penetration testing. Techniques map to MITRE ATT&CK [T1055](https://attack.mitre.org/techniques/T1055/) (Process Injection), [T1055.001](https://attack.mitre.org/techniques/T1055/001/) (DLL Injection), [T1055.002](https://attack.mitre.org/techniques/T1055/002/) (PE Injection), [T1055.004](https://attack.mitre.org/techniques/T1055/004/) (APC Injection), and [T1055.012](https://attack.mitre.org/techniques/T1055/012/) (Process Hollowing).
+
+---
+
+## Why Does Process Injection Bypass AppLocker?
+
+AppLocker evaluates processes at **creation time**. It checks the binary on disk, validates it against publisher/path/hash rules, and makes an allow/deny decision. That's the entire window it has.
+
+Process injection sidesteps that window entirely:
+
+```mermaid
+flowchart TD
+    E["AppLocker evaluates notepad.exe\ntrusted, signed, allowed"] --> S["AppLocker's window closes here"]
+    S --> I["VirtualAllocEx()\nWriteProcessMemory() — your shellcode\nCreateRemoteThread()"]
+    I --> R["Shellcode executes inside notepad.exe"]
+    R --> N["No new process = no new AppLocker evaluation.\nnotepad.exe was already approved"]
+```
+
+Your payload inherits the host process's:
+- AppLocker trust level
+- Process token and privileges
+- Network identity
+- Parent process ancestry
+
+The target process is the disguise. AppLocker never sees what runs inside it. The same evaluation gap is what makes [DLL hijacking](/docs/applocker/dll-hijacking/) work, and injected shellcode is the usual follow-on to a [Defender bypass](/docs/redteam/defender-bypass/) or an [AMSI bypass](/docs/redteam/bypass-amsi/).
 
 ---
 
@@ -51,7 +79,7 @@ winget install Microsoft.Sysinternals
 $env:_NT_SYMBOL_PATH = "srv*C:\Symbols*https://msdl.microsoft.com/download/symbols"
 ```
 
-**2. Enable verbose Sysmon logging for injection detection**
+**2. Enable verbose [Sysmon](/docs/blueteam/lolbins-hunting/) logging for injection detection**
 
 ```powershell {linenos=inline}
 # sysmon-inject.xml — targeted config for catching injections
@@ -137,36 +165,7 @@ Revert between techniques: injected shellcode lingering in target processes will
 
 ---
 
-## Why Process Injection Bypasses AppLocker
-
-AppLocker evaluates processes at **creation time**. It checks the binary on disk, validates it against publisher/path/hash rules, and makes an allow/deny decision. That's the entire window it has.
-
-Process injection sidesteps that window entirely:
-
-```
-AppLocker evaluates:    notepad.exe   ← trusted, signed, allowed
-                              │
-AppLocker stops here          │
-                              │   VirtualAllocEx()
-                              │   WriteProcessMemory()  ← your shellcode
-                              │   CreateRemoteThread()
-                              ▼
-                    shellcode executes inside notepad.exe
-                    notepad.exe is the process — AppLocker already approved it
-                    no new process = no new AppLocker evaluation
-```
-
-Your payload inherits the host process's:
-- AppLocker trust level
-- Process token and privileges
-- Network identity
-- Parent process ancestry
-
-The target process is the disguise. AppLocker never sees what runs inside it.
-
----
-
-## Tool 0 — Find Injectable Processes
+## Tool 0: Find Injectable Processes
 
 Before injecting anything, find the best targets: processes that are trusted, stable, and have the right architecture.
 
@@ -280,7 +279,7 @@ if ($top) {
 
 ---
 
-## Technique 1 — Classic Shellcode Injection
+## Technique 1: Classic Shellcode Injection
 
 The foundational technique. Allocate memory in a remote process, write shellcode, create a thread to execute it. Loud but reliable, good for validating your shellcode before moving to stealthier methods.
 
@@ -415,7 +414,7 @@ python3 encrypt_sc.py -i raw.bin -k 0x42 | ./classic_inject.exe 1234
 
 ---
 
-## Technique 2 — RW→RX Two-Stage Injection (No RWX)
+## Technique 2: RW→RX Two-Stage Injection (No RWX)
 
 The classic technique allocates `PAGE_EXECUTE_READWRITE`, an instant EDR flag. This variant allocates `PAGE_READWRITE` first, writes the shellcode, then flips to `PAGE_EXECUTE_READ` before threading. The memory is never simultaneously writable and executable.
 
@@ -531,7 +530,7 @@ int main(int argc, char *argv[]) {
 
 ---
 
-## Technique 3 — APC Injection
+## Technique 3: APC Injection
 
 Asynchronous Procedure Calls (APCs) allow queuing a function to execute in the context of a specific thread. When a thread enters an **alertable wait** (via `SleepEx`, `WaitForSingleObjectEx`, `MsgWaitForMultipleObjectsEx`), it drains its APC queue. Queue your shellcode as an APC to an alertable thread, and it executes under that thread's identity.
 
@@ -643,7 +642,7 @@ int main(int argc, char *argv[]) {
 
 ---
 
-## Technique 4 — Early Bird APC Injection
+## Technique 4: Early Bird APC Injection
 
 Early Bird is the stealth upgrade to plain APC. Instead of targeting an existing process (whose threads may never enter alertable waits), we:
 
@@ -772,7 +771,7 @@ x86_64-w64-mingw32-gcc -o earlybird.exe earlybird.c -s -mwindows -Wl,--build-id=
 
 ---
 
-## Technique 5 — Thread Hijacking
+## Technique 5: Thread Hijacking
 
 No new threads at all. Find a running thread in the target, suspend it, redirect its instruction pointer to your shellcode, resume. The shellcode executes on a thread that was already there: no `CreateRemoteThread`, no APC.
 
@@ -936,7 +935,7 @@ int main(int argc, char *argv[]) {
 
 ---
 
-## Technique 6 — NtMapViewOfSection (Shared Memory Injection)
+## Technique 6: NtMapViewOfSection (Shared Memory Injection)
 
 Section-based injection avoids `WriteProcessMemory` entirely, one of the most-monitored injection APIs. Instead, we create a shared memory section, map it into both our process and the target, write shellcode into our local mapping (which the target sees simultaneously), then thread into it.
 
@@ -1082,9 +1081,24 @@ int main(int argc, char *argv[]) {
 
 ---
 
-## Technique 7 — Process Hollowing
+## Technique 7: Process Hollowing
 
 The crown jewel of process injection. Spawn a legitimate process suspended, **hollow out its image**, unmapping the original executable from memory, write your PE payload in its place, redirect the entry point, and resume. From the outside, it looks like `notepad.exe` is running. Inside, your payload owns the entire process.
+
+```mermaid
+sequenceDiagram
+    participant A as Attacker code
+    participant K as Windows kernel
+    participant P as notepad.exe (target)
+    A->>K: CreateProcess(notepad.exe, CREATE_SUSPENDED)
+    K->>P: Process created, main thread suspended
+    A->>P: NtUnmapViewOfSection() — hollow out the original image
+    A->>P: VirtualAllocEx() at the payload's preferred base
+    A->>P: WriteProcessMemory() — headers + sections of your PE
+    A->>P: SetThreadContext() — point RIP/EAX at the new entry point
+    A->>K: ResumeThread()
+    K->>P: Executes your payload, still named notepad.exe
+```
 
 ```c {linenos=inline}
 /* hollow.c
@@ -1274,7 +1288,7 @@ x86_64-w64-mingw32-gcc -o hollow.exe hollow.c -s -mwindows -Wl,--build-id=none
 
 ---
 
-## Python — Injection Payload Builder
+## Python: Injection Payload Builder
 
 Chains shellcode generation, encryption, and injection command output into one tool.
 

@@ -1,7 +1,11 @@
 ---
 title: "AppLocker Bypass: Regasm and Regsvcs"
-date: 2026-03-06
-description: "A practical red team guide to bypassing AppLocker using Regasm.exe and Regsvcs.exe through COM object abuse, covering payload development, default and configured rule bypasses, and OPSEC considerations."
+date: 2026-05-18
+weight: 4
+reading_path: "applocker"
+step: 4
+description: "A red team guide to bypassing AppLocker with Regasm.exe and Regsvcs.exe through COM object abuse, covering payload development and blue team detection."
+verified: "Windows 10/11 Enterprise · May 2026"
 tags: ["redteam", "applocker", "bypass", "regasm", "regsvcs", "lolbins", "windows", "evasion"]
 ---
 
@@ -25,7 +29,7 @@ This post is intended for **authorized red team engagements and lab environments
 
 ---
 
-## How AppLocker Works
+## How Does AppLocker Work?
 
 AppLocker enforces execution policies through rules defined across four categories:
 
@@ -45,12 +49,25 @@ Rules can be defined by **path**, **publisher** (digital signature), or **file h
 %PROGRAMFILES(X86)%\* → Everything in C:\Program Files (x86)\ is allowed
 ```
 
+At process launch, AppLocker walks its rules in order and the first match decides the outcome:
+
+```mermaid
+flowchart TD
+    L["Process launch"] --> H{"Matches an explicit\ndeny rule?"}
+    H -->|Yes| BLOCK["BLOCK"]
+    H -->|No| P{"Matches an allow rule\nby path, publisher, or hash?"}
+    P -->|"path inside %WINDIR% or %PROGRAMFILES%"| ALLOW["ALLOW"]
+    P -->|"signed by a trusted publisher"| ALLOW
+    P -->|"known good hash"| ALLOW
+    P -->|"no rule matches"| DEFAULT["BLOCK (default deny)"]
+```
+
 This is where Regasm and Regsvcs come in. Both binaries live inside `%WINDIR%\Microsoft.NET\Framework\`, a path covered by the default `%WINDIR%\*` rule, meaning they are **always trusted by default AppLocker policies**.
 
 > 📸 **Figure 1** — Screenshot: AppLocker policy in gpedit.msc showing default executable rules with %WINDIR% and %PROGRAMFILES% path rules
 > `static/images/applocker-bypass/figure-01-applocker-default-rules.png`
 
-### Verifying AppLocker is Enforced
+### How Do You Verify AppLocker Is Enforced?
 
 Before attempting a bypass, confirm AppLocker is active and in enforcing mode:
 
@@ -67,6 +84,10 @@ Get-AppLockerPolicy -Effective | Test-AppLockerPolicy -Path "C:\Users\Public\tes
 
 > 📸 **Figure 2** — Screenshot: PowerShell output showing AppLocker in Enforce mode and a test binary being blocked
 > `static/images/applocker-bypass/figure-02-applocker-enforced.png`
+
+---
+
+> Both binaries are .NET tooling, which makes this a close cousin of [reflective assembly loading](/docs/applocker/bypass-assembly-load/). There, bytes are loaded into an already-trusted process; here, the CLR itself is persuaded to run your assembly. Pair either with an [AMSI bypass](/docs/redteam/bypass-amsi/) before delivery.
 
 ---
 
@@ -169,7 +190,7 @@ The output is `Bypass.dll`, a managed .NET assembly ready to be consumed by Rega
 
 ### Adding a Shellcode Runner
 
-For a real engagement, replace the `Process.Start` call with a shellcode runner. Here is a minimal in-memory shellcode execution example:
+For a real engagement, replace the `Process.Start` call with a [shellcode](/docs/applocker/process-injection/) runner. Here is a minimal in-memory shellcode execution example:
 
 ```csharp {linenos=inline}
 public static void Execute()
@@ -287,7 +308,7 @@ C:\Windows\Microsoft.NET\Framework64\v4.0.30319\regsvcs.exe /u Bypass.dll
 
 ## Bypassing Default vs Configured AppLocker Rules
 
-### Default Rules — Easiest Bypass
+### Default Rules: Easiest Bypass
 
 Default AppLocker rules whitelist `%WINDIR%\*` entirely. Since both Regasm and Regsvcs live inside `%WINDIR%\Microsoft.NET\`, they are always trusted. The bypass works out of the box with no additional considerations.
 
@@ -301,7 +322,7 @@ C:\Windows\Temp\Bypass.dll         ← writable, inside %WINDIR% but DLL rules o
 
 Then call Regasm or Regsvcs from their trusted path pointing at your DLL.
 
-### Configured Rules — Hardened Environments
+### Configured Rules: Hardened Environments
 
 In hardened environments an administrator may have created explicit **deny rules** or **publisher rules** that restrict what Regasm and Regsvcs can load. Here are the common hardening approaches and how to work around them:
 
@@ -364,7 +385,7 @@ Get-ChildItem "C:\Windows\Microsoft.NET\Framework*" -Recurse -Filter "regsvcs.ex
 
 ## OPSEC Considerations
 
-### What Gets Logged
+### What Gets Logged?
 
 Understanding what telemetry this technique generates is critical for real engagements:
 
@@ -372,7 +393,7 @@ Understanding what telemetry this technique generates is critical for real engag
 |---|---|---|
 | Security Log | 4688 | Regasm.exe / Regsvcs.exe process creation with command line |
 | AppLocker Log | 8002 | Allowed execution of Regasm/Regsvcs (yes — allowed events log too) |
-| Sysmon | 1 | Full process creation with parent, hash, command line |
+| [Sysmon](/docs/blueteam/lolbins-hunting/) | 1 | Full process creation with parent, hash, command line |
 | Sysmon | 7 | DLL loaded by Regasm/Regsvcs including your Bypass.dll |
 | Sysmon | 3 | Network connection if payload makes outbound connection |
 
