@@ -1,0 +1,25 @@
+# Reading paths, surfaced by layouts/_partials/custom/path-nav.html and listed
+# in content/docs/start-here.md.
+#
+# A note joins a path with `reading_path: <key>` and `step: <n>` front matter.
+# (`path` itself is reserved by Hugo and removed in v0.144.) The key
+# must match one below; path-nav errors loudly on an unknown key rather than
+# rendering nothing, because a silent miss looks identical to "no path set".
+#
+# `number` is only for display ("Path 1 of the reading order") and must match
+# the ordering of the headings in start-here.md.
+#
+# Deliberately absent: tools. Those three guides are explicitly not a sequence,
+# so giving them prev/next would imply an order that does not exist.
+
+kerberos:
+  number: 1
+  name: "Active Directory and Kerberos"
+
+applocker:
+  number: 2
+  name: "Application Whitelisting"
+
+evasion:
+  number: 3
+  name: "Evasion and Credential Access"

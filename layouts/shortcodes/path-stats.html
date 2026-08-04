@@ -1,0 +1,60 @@
+{{- /*
+  path-stats — note count and total reading time for one or more sections.
+
+    {{< path-stats sections="/docs/kerberos" >}}
+    {{< path-stats sections="/docs/redteam,/docs/blueteam" >}}
+
+  Used by content/docs/start-here.md so the path headers cannot drift from
+  what is actually published. Adding a note to a section updates every figure
+  on that page automatically.
+
+  RegularPagesRecursive, never RegularPages — see CLAUDE.md. RegularPages
+  returns only direct children, which would miss the 10 Kerberos notes nested
+  in delegation/ and ticket-attacks/ and report 8 instead of 18.
+
+  Reading time comes from Hugo's own .ReadingTime, so it matches the "N min
+  read" shown in each note's header rather than being a second estimate.
+*/ -}}
+
+{{- $spec := .Get "sections" | default (.Get "section") -}}
+{{- if not $spec -}}
+  {{- errorf "path-stats: needs sections=\"/docs/foo\" (called from %s)" .Page.Path -}}
+{{- end -}}
+
+{{- $count := 0 -}}
+{{- $mins := 0 -}}
+{{- range split $spec "," -}}
+  {{- $path := trim . " " -}}
+  {{- with site.GetPage $path -}}
+    {{- range .RegularPagesRecursive -}}
+      {{- $count = add $count 1 -}}
+      {{- $mins = add $mins .ReadingTime -}}
+    {{- end -}}
+  {{- else -}}
+    {{- errorf "path-stats: no section at %q" $path -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $notes := printf "%d notes" $count -}}
+{{- if eq $count 1 }}{{ $notes = "1 note" }}{{ end -}}
+
+{{- $time := "" -}}
+{{- /* Under an hour reads better in minutes; at or above it, fractions of an
+       hour are easier to judge than "78 minutes". */ -}}
+{{- if lt $mins 60 -}}
+  {{- $time = printf "roughly %d minutes" $mins -}}
+{{- else -}}
+  {{- /* Round to the nearest quarter hour and render it as a fraction, so the
+         output reads "5½ hours" rather than "5.47 hours". */ -}}
+  {{- $quarters := int (math.Round (div (float $mins) 15.0)) -}}
+  {{- $hours := int (math.Floor (div (float $quarters) 4.0)) -}}
+  {{- $rem := sub $quarters (mul $hours 4) -}}
+  {{- $frac := index (slice "" "¼" "½" "¾") $rem -}}
+  {{- if and (eq $hours 1) (eq $rem 0) -}}
+    {{- $time = "roughly 1 hour" -}}
+  {{- else -}}
+    {{- $time = printf "roughly %d%s hours" $hours $frac -}}
+  {{- end -}}
+{{- end -}}
+
+<strong>{{ $notes }}, {{ $time }}.</strong>

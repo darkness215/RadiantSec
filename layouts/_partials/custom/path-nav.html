@@ -1,0 +1,69 @@
+{{- /*
+  path-nav — prev/next along a reading path, replacing the default pager on any
+  note carrying `path` + `step` front matter.
+
+  Why this exists: the default pager (components/pager.html) walks the section
+  in sidebar order, which is fine within a section but cannot follow a path that
+  spans two of them. Path 3 runs redteam → redteam → redteam → blueteam, so the
+  stock pager would dead-end at the section boundary.
+
+  Ordering comes from `step`, not from weight or date. The two are kept in sync
+  by hand (see the note at the top of content/docs/start-here.md); step is the
+  authority here because a path can cross sections and weight cannot.
+
+  The front matter key is `reading_path`, NOT `path`. `path` is reserved by
+  Hugo and was removed outright in v0.144 — using it fails the build with
+  "path in front matter was deprecated ... and subsequently removed".
+
+  Renders nothing when the page has no reading_path, so callers need no guard.
+*/ -}}
+
+{{- $key := .Params.reading_path -}}
+{{- with $key -}}
+  {{- $meta := index (hugo.Data.paths | default dict) $key -}}
+  {{- if not $meta -}}
+    {{- errorf "path-nav: %q sets reading_path=%q, which is not in data/paths.yaml" $.Page.Path $key -}}
+  {{- end -}}
+
+  {{- /* Every note on this path, in step order. */ -}}
+  {{- $steps := where site.RegularPages "Params.reading_path" $key -}}
+  {{- $steps = sort $steps "Params.step" -}}
+  {{- $total := len $steps -}}
+
+  {{- $idx := -1 -}}
+  {{- range $i, $p := $steps -}}
+    {{- if eq $p.RelPermalink $.Page.RelPermalink -}}{{- $idx = $i -}}{{- end -}}
+  {{- end -}}
+
+  {{- if ge $idx 0 -}}
+    {{- $prev := cond (gt $idx 0) (index $steps (sub $idx 1)) false -}}
+    {{- $next := cond (lt $idx (sub $total 1)) (index $steps (add $idx 1)) false -}}
+    <nav class="path-nav" aria-label="Reading path navigation">
+      <div class="path-nav-meta">
+        <a href="/docs/start-here/" class="path-nav-label">Path {{ $meta.number }}: {{ $meta.name }}</a>
+        <span class="path-nav-step">Step {{ add $idx 1 }} of {{ $total }}</span>
+      </div>
+      <div class="path-nav-links">
+        {{- with $prev }}
+        <a href="{{ .RelPermalink }}" class="path-nav-link path-nav-prev" rel="prev">
+          <span class="path-nav-dir">&larr; Previous</span>
+          <span class="path-nav-title">{{ .LinkTitle }}</span>
+        </a>
+        {{- else }}
+        <span class="path-nav-link path-nav-empty" aria-hidden="true"></span>
+        {{- end }}
+        {{- with $next }}
+        <a href="{{ .RelPermalink }}" class="path-nav-link path-nav-next" rel="next">
+          <span class="path-nav-dir">Next &rarr;</span>
+          <span class="path-nav-title">{{ .LinkTitle }}</span>
+        </a>
+        {{- else }}
+        <a href="/docs/start-here/" class="path-nav-link path-nav-next">
+          <span class="path-nav-dir">Path complete &rarr;</span>
+          <span class="path-nav-title">Back to Start Here</span>
+        </a>
+        {{- end }}
+      </div>
+    </nav>
+  {{- end -}}
+{{- end -}}
