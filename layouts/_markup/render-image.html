@@ -1,0 +1,66 @@
+{{- /* Image render hook.
+
+   Adds lazy loading and async decoding, and resolves intrinsic dimensions so
+   the browser reserves space (avoiding layout shift) before the file arrives.
+
+   The FIRST image on a page is loaded eagerly with fetchpriority="high": it is
+   usually the LCP element, and lazy-loading it measurably delays that metric.
+   .Ordinal is 0-based and counts images within the page being rendered.
+
+   Images Hugo can resolve as a resource (page resources or assets/) are
+   converted to WebP and capped at 2112px wide, and carry width/height. Source
+   files should be PNG under assets/ — do not hand-convert, this hook does it.
+
+   Remote and /static/ paths cannot be resolved as resources. They fall through
+   untouched: original URL, no conversion, no width/height. That is why the
+   gavel screenshots still render from static/images/gavel/. */ -}}
+
+{{- $src := .Destination -}}
+{{- $alt := .PlainText -}}
+{{- $title := .Title -}}
+{{- /* .Ordinal counts only images that pass through this hook, so it cannot see
+       images emitted by the browser shortcode. On a page using that shortcode
+       the hero is almost always the shortcode's, and marking a mid-page markdown
+       image fetchpriority="high" competes with the real LCP. HasShortcode is
+       order-independent, unlike anything based on render sequence. */ -}}
+{{- $isFirst := and (eq .Ordinal 0) (not (.Page.HasShortcode "browser")) -}}
+
+{{- /* Try page resource first, then global assets. The leading slash is stripped
+       because resources.Get is relative to assets/: without this, the natural
+       "/images/x.png" spelling misses and falls through to an unprocessed image
+       with no dimensions, which looks identical to a static/ path and gives no
+       error. Genuinely-static files simply do not resolve and still fall
+       through, which is what keeps static/images/gavel/ working. */ -}}
+{{- $res := "" -}}
+{{- if not (urls.Parse $src).IsAbs -}}
+  {{- $lookup := strings.TrimPrefix "/" $src -}}
+  {{- with .Page.Resources.GetMatch $lookup -}}
+    {{- $res = . -}}
+  {{- else -}}
+    {{- with resources.Get $lookup -}}{{- $res = . -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- /* Convert to WebP and downscale. SVG and GIF cannot be processed: SVG has
+       no raster pipeline, and processing a GIF drops its animation.
+
+       The 2112px cap is 2x the 1056px content column (72rem minus 3rem padding
+       either side), so a 2x screenshot passes through unresized and stays crisp
+       on HiDPI. Capping lower forces TWO fractional resamples on the way to the
+       screen — Hugo's, then the browser's — which is what made text mushy at the
+       old 1400px cap. Quality is 90 because WebP artifacts land hardest on small
+       text. Do not lower either without looking at a screenshot afterwards. */ -}}
+{{- with $res -}}
+  {{- if and (eq .ResourceType "image") (not (in (slice "svg" "gif") .MediaType.SubType)) -}}
+    {{- $spec := cond (gt .Width 2112) "resize 2112x webp q90" "webp q90" -}}
+    {{- with .Process $spec -}}
+      {{- $res = . -}}
+      {{- $src = .RelPermalink -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+<img src="{{ $src | safeURL }}" alt="{{ $alt }}"
+  {{- with $title }} title="{{ . }}"{{ end }}
+  {{- with $res }}{{ if and (eq .ResourceType "image") .Width }} width="{{ .Width }}" height="{{ .Height }}"{{ end }}{{ end }}
+  {{- if $isFirst }} loading="eager" fetchpriority="high"{{ else }} loading="lazy"{{ end }} decoding="async">

@@ -8,7 +8,10 @@
         <div class="content">
           {{ if .Title }}
           <div class="hx:flex hx:flex-col hx:sm:flex-row hx:items-start hx:sm:items-center hx:sm:justify-between hx:gap-4 hx:mb-4">
-            <h1 class="hx:mb-0">{{ .Title }}</h1>
+            {{- /* `heading` lets a page keep a long, readable on-page headline
+                 while `title` stays under the ~60 chars Google shows in SERPs.
+                 Falls back to Title when unset. */ -}}
+            <h1 class="hx:mb-0">{{ .Params.heading | default .Title }}</h1>
             {{ partial "components/page-context-menu" . }}
           </div>
           {{ end }}
@@ -19,8 +22,13 @@
             {{- if gt .ReadingTime 0 -}}
             <span class="post-reading-time">{{ .ReadingTime }} min read</span>
             {{- end -}}
-            {{- if .Params.verified -}}
-            <span class="post-verified">✓ {{ .Params.verified }}</span>
+            {{- /* Freshness signal. Security technique pages rot fast, and a bare
+                 ✓ did not say what the tick was claiming. The explicit "Last
+                 verified" label is what a reader (and an answer engine) needs to
+                 judge whether a bypass still applies. `title` carries the long
+                 form for screen readers and hover. */ -}}
+            {{- with .Params.verified -}}
+            <span class="post-verified" title="Last verified against {{ . }}">Last verified: {{ . }}</span>
             {{- end -}}
           </div>
           {{- if .Params.tools -}}
@@ -33,7 +41,27 @@
           {{ .Content }}
         </div>
 {{ partial "components/last-updated.html" . }}
-        {{- if (site.Params.page.displayPagination | default true) -}}
+
+        {{- /* The "Related Notes" block was removed deliberately. It sat between
+             the article and the pager on every docs page and mostly restated
+             links the prose already made: on HTB pages it listed the same
+             siblings the Key Takeaways paragraph links by hand. Prev/next is
+             enough navigation here.
+
+             The .related-* CSS stays in custom.css because blog/single.html
+             still uses it for "Continue Reading". If this is ever restored,
+             note the two traps it had solved: .Section returns "docs" for every
+             page (use the second path segment), and Hugo's Related ranking
+             needs an explicit shared-tag count on top (1 same-section, 2
+             cross-section) or a lone `linux` tag pairs unrelated pages. */ -}}
+
+        {{- /* Notes on a reading path get path-aware prev/next instead of the
+             stock pager. The stock pager walks the section in sidebar order,
+             which cannot follow Path 3 across the redteam → blueteam boundary.
+             Pages with no `reading_path` keep the default behaviour. */ -}}
+        {{- if .Params.reading_path -}}
+          {{- partial "custom/path-nav.html" . -}}
+        {{- else if (site.Params.page.displayPagination | default true) -}}
           {{- partial "components/pager.html" . -}}
         {{- end -}}
         {{ partial "components/comments.html" . }}

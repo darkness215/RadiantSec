@@ -1,0 +1,68 @@
+{{- /* Browser frame around a screenshot.
+
+     {{< browser url="http://editorial.htb/" src="images/editorial/editorial-homepage.png"
+                 alt="Editorial Tiempo Arriba homepage" >}}
+
+   Params: url (required), src (required), alt, caption, loading ("lazy"|"eager").
+
+   Image handling mirrors layouts/_markup/render-image.html: assets/ and page
+   resources are converted to WebP q90, capped at 2112px, and carry width/height.
+   Markdown render hooks do not fire inside a shortcode, which is why that logic
+   is repeated here rather than shared.
+
+   A src that resolves to nothing is a BUILD ERROR, not a silent fallback.
+   Resolution order: page resource, then assets/ (with any leading slash
+   stripped, since resources.Get is relative to assets/), then static/. Only a
+   remote URL skips resolution. Testing a leading slash against assets/ matters:
+   treating "/images/x.png" as automatically-static is what let a typo ship a
+   broken image with a clean build. */ -}}
+
+{{- $src := .Get "src" | default "" -}}
+{{- $url := .Get "url" | default "" -}}
+{{- $alt := .Get "alt" | default "" -}}
+{{- $caption := .Get "caption" | default "" -}}
+{{- $loading := .Get "loading" | default "lazy" -}}
+
+{{- if not $src }}{{ errorf "browser shortcode: missing src in %s" .Page.File.Path }}{{ end -}}
+{{- if not $url }}{{ errorf "browser shortcode: missing url in %s" .Page.File.Path }}{{ end -}}
+
+{{- $res := "" -}}
+{{- if not (urls.Parse $src).IsAbs -}}
+  {{- $lookup := strings.TrimPrefix "/" $src -}}
+  {{- with .Page.Resources.GetMatch $lookup -}}
+    {{- $res = . -}}
+  {{- else -}}
+    {{- with resources.Get $lookup -}}
+      {{- $res = . -}}
+    {{- else -}}
+      {{- /* Not an asset. Accept it only if it genuinely exists in static/. */ -}}
+      {{- if not (fileExists (path.Join "static" $src)) -}}
+        {{- errorf "browser shortcode: cannot resolve src %q in %s — no such file under assets/ or static/" $src $.Page.File.Path -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- with $res -}}
+  {{- if and (eq .ResourceType "image") (not (in (slice "svg" "gif") .MediaType.SubType)) -}}
+    {{- /* 2112 = 2x the 1056px content column. See render-image.html. */ -}}
+    {{- $spec := cond (gt .Width 2112) "resize 2112x webp q90" "webp q90" -}}
+    {{- with .Process $spec -}}
+      {{- $res = . -}}
+      {{- $src = .RelPermalink -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+<figure class="browser-frame">
+  <div class="browser-frame-bar">
+    <span class="browser-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="browser-url">{{ $url }}</span>
+  </div>
+  <img src="{{ $src | safeURL }}" alt="{{ $alt }}"
+    {{- with $res }}{{ if and (eq .ResourceType "image") .Width }} width="{{ .Width }}" height="{{ .Height }}"{{ end }}{{ end }}
+    {{- if eq $loading "eager" }} loading="eager" fetchpriority="high"{{ else }} loading="lazy"{{ end }} decoding="async">
+  {{- with $caption }}
+  <figcaption>{{ . }}</figcaption>
+  {{- end }}
+</figure>
