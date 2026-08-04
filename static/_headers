@@ -58,3 +58,19 @@
 
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Images processed by the render hook or the browser shortcode are published as
+# <name>_hu_<hash>.<ext> beside their assets/ path, so a per-machine directory
+# under /images/ holds nothing but content-addressed files.
+#
+# There is deliberately no blanket /images/* rule: that directory also holds
+# stable, non-fingerprinted files (logo-*.png, favicon.ico, the mirrored HTB
+# avatars under htb/, and the static gavel screenshots). Freezing those for a
+# year would pin a stale logo or avatar with no way to bust it.
+#
+# The ~200 generated og-base_hu_*.png cards sit directly in /images/ next to
+# those stable files and so cannot be matched without catching them. They are
+# fetched by social crawlers rather than browsers, so the revalidation cost is
+# negligible. Add a line here for each new machine that ships screenshots.
+/images/editorial/*
+  Cache-Control: public, max-age=31536000, immutable

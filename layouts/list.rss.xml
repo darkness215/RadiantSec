@@ -16,13 +16,19 @@
 
   Kept deliberately: <atom:link rel="self">, the author/managingEditor block, and
   the 50-item cap, all of which the theme sets and feed validators expect.
+
+  site.Language.Locale requires Hugo >= 0.158. Its predecessor
+  .Site.LanguageCode is deprecated as of the same release and will be removed.
+  There is no expression that satisfies both, so HUGO_VERSION on Cloudflare
+  must stay >= 0.158 and matched to local. A 0.157 build fails here with
+  "can't evaluate field Locale in type *langs.Language".
 */ -}}
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>{{ .Site.Title }} – {{ .Title }}</title>
     <link>{{ .Permalink }}</link>
     <description>Recent content {{ if ne  .Title  .Site.Title }}{{ with .Title }}in {{.}} {{ end }}{{ end }}on {{ .Site.Title }}</description>
-    <generator>Hugo -- gohugo.io</generator>{{ with site.LanguageCode }}
+    <generator>Hugo -- gohugo.io</generator>{{ with site.Language.Locale }}
     <language>{{.}}</language>{{end}}{{ with .Site.Params.Author.email }}
     <managingEditor>{{.}}{{ with $.Site.Params.Author.name }} ({{.}}){{end}}</managingEditor>{{end}}{{ with .Site.Params.Author.email }}
     <webMaster>{{.}}{{ with $.Site.Params.Author.name }} ({{.}}){{end}}</webMaster>{{end}}{{ with .Site.Copyright }}
