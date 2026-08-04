@@ -1,0 +1,25 @@
+{{- /* theme-toggle.html — project override of theme partial.
+   Replaces the 3-option dropdown (Light/Dark/System) with a single button
+   that toggles directly between light and dark. The JS in assets/js/core/theme.js
+   handles the click: System is the default on first visit; the first click pins
+   to an explicit theme and the button becomes a pure light<->dark toggle. */ -}}
+{{- $iconHeight := .iconHeight | default 12 -}}
+{{- $class := .class | default "hx:h-7 hx:w-7 hx:text-xs hx:hover:bg-gray-100 hx:hover:text-gray-900 hx:dark:hover:bg-primary-100/5 hx:dark:hover:text-gray-50 hx:font-medium hx:text-gray-600 hx:transition-colors hx:dark:text-gray-400" -}}
+
+{{- $toggleTheme := (T "toggleTheme") | default "Toggle theme" -}}
+
+<div class="hx:flex hx:justify-items-start hx:group" data-theme="light">
+  <button
+    title="{{ $toggleTheme }}"
+    class="hextra-theme-toggle hx:cursor-pointer hx:rounded-md hx:font-medium {{ $class }}"
+    type="button"
+    aria-label="{{ $toggleTheme }}"
+  >
+    <div class="hx:flex hx:items-center hx:justify-center hx:gap-2">
+      {{- /* Sun icon — shown when current theme is dark (click -> light) */ -}}
+      {{- partial "utils/icon.html" (dict "name" "sun" "attributes" (printf `height=%d class="hx:group-data-[theme=light]:hidden"` $iconHeight)) -}}
+      {{- /* Moon icon — shown when current theme is light or system-resolving-to-light (click -> dark) */ -}}
+      {{- partial "utils/icon.html" (dict "name" "moon" "attributes" (printf `height=%d class="hx:group-data-[theme=dark]:hidden"` $iconHeight)) -}}
+    </div>
+  </button>
+</div>
