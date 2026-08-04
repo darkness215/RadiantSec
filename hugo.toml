@@ -1,20 +1,38 @@
 baseURL = "https://radiantsec.io/"
-languageCode = "en-us"
+locale = "en-us"
 title = "Radiant Sec"
 theme = "hextra"
 enableGitInfo = true
+
+# Hugo's defaults are resampleFilter = "Box" and quality = 75. Box is a poor
+# downscaling filter for screenshots: it softens small text badly. Lanczos costs
+# a little build time and is markedly sharper on UI captures.
+[imaging]
+  resampleFilter = "Lanczos"
+  quality        = 90
 
 [outputs]
   home    = ["HTML", "RSS"]
   section = ["HTML", "RSS"]
   page    = ["HTML"]
+  # No RSS for tags. Hugo generates a feed per taxonomy term by default, which
+  # produced ~128 feeds nobody subscribes to — for pages that are noindex anyway
+  # (see the cascade in content/tags/_index.md). One tag feed had reached 4.2 MB.
+  term     = ["HTML"]
+  taxonomy = ["HTML"]
 
 [params]
   description = "Security research, HTB writeups, red team and blue team notes."
   favicon = "favicon.ico"
   defaultTheme = "system"
-  displayUpdatedDate = true
+  displayUpdatedDate = false
   images = ["/images/logo-dark.png"]
+
+[params.theme]
+  default = "system"
+
+[params.mermaid]
+  base = "https://cdn.jsdelivr.net/npm/mermaid@11/dist"
 
 [params.search]
   enable = true
@@ -55,10 +73,22 @@ enableGitInfo = true
     weight = 4
     [menu.main.params]
       type = "search"
+  # Theme toggle sits in the navbar just before the GitHub icon. The footer and
+  # sidebar copies are hidden in custom.css, NOT via params.theme.displayToggle
+  # — see the comment on those rules for why.
+  # `identifier` is required: Hugo keys menu entries by identifier and falls back
+  # to `name`, so a second entry with an empty name would collide with the GitHub
+  # one below and silently replace it.
+  [[menu.main]]
+    identifier = "theme-toggle"
+    name = ""
+    weight = 5
+    [menu.main.params]
+      type = "theme-toggle"
   [[menu.main]]
     name = ""
     url = "https://github.com/darkness215/RadiantSec"
-    weight = 5
+    weight = 6
     [menu.main.params]
       icon = "github"
 
@@ -69,7 +99,10 @@ enableGitInfo = true
   tag = "tags"
 
 [markup.highlight]
-  style = "monokai"
+  # noClasses = false makes Chroma emit CSS classes instead of inline styles, so
+  # Hextra's own chroma/light.css + chroma/dark.css control the palette per theme.
+  # With inline styles the (dark) monokai background was forced in light mode too.
+  noClasses = false
   lineNos = false
 
 [params.blog]
